@@ -13,7 +13,6 @@ Globals:
         AYAHS_TABLE_NAME: !Ref AyahsTable
         GMAIL_SECRET_ID: !Ref GmailSecretId
         MAIL_FROM: !Ref MailFrom
-        EMAIL_SUBJECT: !Ref EmailSubject
         HTTP_API_URL: !Sub https://${HttpApi}.execute-api.${AWS::Region}.amazonaws.com/v1
   HttpApi:
     CorsConfiguration:
@@ -36,10 +35,6 @@ Parameters:
     Type: String
     Default: your@gmail.com
     Description: From address to use for sending emails (Gmail address).
-  EmailSubject:
-    Type: String
-    Default: Random Ayah
-    Description: Email subject prefix.
 
 Resources:
   ContactsTable:

@@ -103,7 +103,7 @@ sam deploy `
   --capabilities CAPABILITY_IAM `
   --resolve-s3 `
   --no-confirm-changeset `
-  --parameter-overrides "GmailSecretId=gmail/ayah-mailer" "MailFrom=$MailFrom" "EmailSubject=Random Ayah"
+  --parameter-overrides "GmailSecretId=gmail/ayah-mailer" "MailFrom=$MailFrom"
 ```
 
 Get API URL:
@@ -183,7 +183,7 @@ sam deploy `
   --capabilities CAPABILITY_IAM `
   --resolve-s3 `
   --no-confirm-changeset `
-  --parameter-overrides "GmailSecretId=gmail/ayah-mailer" "MailFrom=$MailFrom" "EmailSubject=Random Ayah"
+  --parameter-overrides "GmailSecretId=gmail/ayah-mailer" "MailFrom=$MailFrom"
 ```
 
 ### View EventBridge rule and logs
