@@ -59,7 +59,7 @@ async function runTest() {
       case 'sendDirect':
         handler = require('./src/handlers/sendDirect');
         event = {
-          body: JSON.stringify({ email: 'test@example.com' })
+          body: JSON.stringify({ email: 'harisxstudy@gmail.com' })
         };
         break;
       case 'sendAll':

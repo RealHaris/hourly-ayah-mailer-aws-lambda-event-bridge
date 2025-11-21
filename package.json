@@ -6,7 +6,14 @@
   "license": "MIT",
   "scripts": {
     "build": "echo Build handled by SAM",
-    "test": "echo No tests"
+    "test": "echo No tests",
+    "local:list": "node test-local.js listContacts",
+    "local:add": "node test-local.js addContact",
+    "local:delete": "node test-local.js deleteContact",
+    "local:send:contact": "node test-local.js sendContact",
+    "local:send:direct": "node test-local.js sendDirect",
+    "local:send:all": "node test-local.js sendAll",
+    "local:scheduled": "node test-local.js scheduledSend"
   },
   "dependencies": {
     "@aws-sdk/client-dynamodb": "^3.632.0",
@@ -15,4 +22,3 @@
     "nodemailer": "^6.9.13"
   }
 }
-
