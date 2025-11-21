@@ -17,7 +17,23 @@ function json(statusCode, body) {
 	};
 }
 
-exports.handler = async () => {
+function getBaseUrl(event) {
+	try {
+		console.log('[sendAll] Getting base URL', { event });
+		const headers = (event && event.headers) || {};
+		const proto = headers['x-forwarded-proto'] || headers['X-Forwarded-Proto'] || 'https';
+		const host = headers.host || headers.Host;
+		const stage = (event && event.requestContext && event.requestContext.stage) || '';
+		if (host) {
+			return `${proto}://${host}${stage && stage !== '$default' ? `/${stage}` : ''}`;
+		}
+	} catch {
+		// ignore
+	}
+	return '';
+}
+
+exports.handler = async (event) => {
 	try {
 		const ayah = await getRandomAyah();
 		const record = {
@@ -34,7 +50,7 @@ exports.handler = async () => {
 			return json(200, { ok: true, message: 'No contacts found; nothing to send.' });
 		}
 
-		const baseUrl = process.env.HTTP_API_URL || '';
+		const baseUrl = getBaseUrl(event) || process.env.HTTP_API_URL || '';
 		const batchSize = 5;
 		const results = [];
 		for (let i = 0; i < valid.length; i += batchSize) {
@@ -43,7 +59,7 @@ exports.handler = async () => {
 			const settled = await Promise.allSettled(
 				chunk.map((c) => {
 					const unsubscribeUrl = baseUrl ? `${baseUrl}/unsubscribe?id=${encodeURIComponent(c.id)}` : '#';
-					const { subject, html, text } = buildReflectionEmailContent(ayah, unsubscribeUrl, c.name);
+					const { subject, html, text } = buildReflectionEmailContent(ayah, unsubscribeUrl, c.name, true);
 					return sendEmail({ to: c.email, subject, html, text });
 				})
 			);

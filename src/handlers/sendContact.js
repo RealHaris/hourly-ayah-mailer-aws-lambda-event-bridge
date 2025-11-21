@@ -25,6 +25,21 @@ function parseBody(event) {
 	}
 }
 
+function getBaseUrl(event) {
+	try {
+		const headers = (event && event.headers) || {};
+		const proto = headers['x-forwarded-proto'] || headers['X-Forwarded-Proto'] || 'https';
+		const host = headers.host || headers.Host;
+		const stage = (event && event.requestContext && event.requestContext.stage) || '';
+		if (host) {
+			return `${proto}://${host}${stage && stage !== '$default' ? `/${stage}` : ''}`;
+		}
+	} catch {
+		// ignore
+	}
+	return '';
+}
+
 exports.handler = async (event) => {
 	try {
 		const { id } = parseBody(event);
@@ -44,9 +59,9 @@ exports.handler = async (event) => {
 		};
 		await putAyah(record);
 
-		const baseUrl = process.env.HTTP_API_URL || '';
+		const baseUrl = getBaseUrl(event) || process.env.HTTP_API_URL || '';
 		const unsubscribeUrl = baseUrl ? `${baseUrl}/unsubscribe?id=${encodeURIComponent(contact.id)}` : '#';
-		const { subject, html, text } = buildReflectionEmailContent(ayah, unsubscribeUrl, contact.name);
+		const { subject, html, text } = buildReflectionEmailContent(ayah, unsubscribeUrl, contact.name, true);
 		await sendEmail({ to: email, subject, html, text });
 		return json(200, { ok: true, sent: 1 });
 	} catch (err) {

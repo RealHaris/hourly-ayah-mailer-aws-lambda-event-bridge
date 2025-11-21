@@ -2,7 +2,7 @@
 
 const { randomUUID } = require('crypto');
 const { getRandomAyah } = require('../lib/quran');
-const { putAyah, getContactByEmail } = require('../lib/dynamo');
+const { putAyah } = require('../lib/dynamo');
 const { sendEmail, buildReflectionEmailContent } = require('../lib/email');
 
 function json(statusCode, body) {
@@ -30,10 +30,9 @@ function isValidEmail(email) {
 }
 
 function buildEmailContent(ayah) {
-  const baseUrl = process.env.HTTP_API_URL || '';
-  return (unsubscribeId, recipientName) => {
-    const unsubscribeUrl = baseUrl && unsubscribeId ? `${baseUrl}/unsubscribe?id=${encodeURIComponent(unsubscribeId)}` : '#';
-    return buildReflectionEmailContent(ayah, unsubscribeUrl, recipientName);
+  return (recipientName) => {
+    // Direct sends: no unsubscribe link or base URL
+    return buildReflectionEmailContent(ayah, '', recipientName, false);
   };
 }
 
@@ -52,9 +51,8 @@ exports.handler = async (event) => {
     };
     await putAyah(record);
 
-    const existing = await getContactByEmail(email).catch(() => null);
     const render = buildEmailContent(ayah);
-    const { subject, html, text } = render(existing && existing.id ? existing.id : undefined, existing && existing.name ? existing.name : undefined);
+    const { subject, html, text } = render(undefined);
     await sendEmail({ to: email, subject, html, text });
     return json(200, { ok: true, sent: 1 });
   } catch (err) {

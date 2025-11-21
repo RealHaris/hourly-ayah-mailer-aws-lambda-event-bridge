@@ -31,7 +31,7 @@ exports.handler = async () => {
 		const settled = await Promise.allSettled(
 			chunk.map((c) => {
 				const unsubscribeUrl = baseUrl ? `${baseUrl}/unsubscribe?id=${encodeURIComponent(c.id)}` : '#';
-				const { subject, html, text } = buildReflectionEmailContent(ayah, unsubscribeUrl, c.name);
+				const { subject, html, text } = buildReflectionEmailContent(ayah, unsubscribeUrl, c.name, true);
 				return sendEmail({ to: c.email, subject, html, text });
 			})
 		);
