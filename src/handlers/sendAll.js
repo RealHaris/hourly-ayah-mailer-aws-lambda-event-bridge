@@ -3,7 +3,7 @@
 const { randomUUID } = require('crypto');
 const { getRandomAyah } = require('../lib/quran');
 const { putAyah, listContacts } = require('../lib/dynamo');
-const { sendBulk } = require('../lib/email');
+const { buildReflectionEmailContent, sendEmail } = require('../lib/email');
 
 function json(statusCode, body) {
 	return {
@@ -17,19 +17,6 @@ function json(statusCode, body) {
 	};
 }
 
-function buildEmailContent(ayah) {
-	const subjectBase = process.env.EMAIL_SUBJECT || 'Random Ayah';
-	const subject = `${subjectBase} - ${ayah.surahNameEnglish} (${ayah.surahNumber}:${ayah.ayahNumber})`;
-	const html = `
-<div style="font-family: system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, Noto Sans, Helvetica Neue, Arial, sans-serif;">
-  <div dir="rtl" style="font-size:20px;line-height:1.8;">${ayah.textArabic}</div>
-  <div style="margin-top:12px;font-size:16px;line-height:1.6;">${ayah.textEnglish}</div>
-  <div style="margin-top:12px;color:#666;">${ayah.surahNameEnglish} (${ayah.surahNumber}:${ayah.ayahNumber})</div>
-</div>`.trim();
-	const text = `${ayah.textArabic}\n\n${ayah.textEnglish}\n\n${ayah.surahNameEnglish} (${ayah.surahNumber}:${ayah.ayahNumber})`;
-	return { subject, html, text };
-}
-
 exports.handler = async () => {
 	try {
 		const ayah = await getRandomAyah();
@@ -41,14 +28,36 @@ exports.handler = async () => {
 		await putAyah(record);
 
 		const contacts = await listContacts();
-		const recipients = contacts.map((c) => c.email).filter(Boolean);
+		const valid = contacts.filter((c) => c && c.email && c.id);
 
-		if (recipients.length === 0) {
+		if (valid.length === 0) {
 			return json(200, { ok: true, message: 'No contacts found; nothing to send.' });
 		}
 
-		const { subject, html, text } = buildEmailContent(ayah);
-		const results = await sendBulk(recipients, subject, html, text, 5);
+		const baseUrl = process.env.HTTP_API_URL || '';
+		const batchSize = 5;
+		const results = [];
+		for (let i = 0; i < valid.length; i += batchSize) {
+			const chunk = valid.slice(i, i + batchSize);
+			// eslint-disable-next-line no-await-in-loop
+			const settled = await Promise.allSettled(
+				chunk.map((c) => {
+					const unsubscribeUrl = baseUrl ? `${baseUrl}/unsubscribe?id=${encodeURIComponent(c.id)}` : '#';
+					const { subject, html, text } = buildReflectionEmailContent(ayah, unsubscribeUrl, c.name);
+					return sendEmail({ to: c.email, subject, html, text });
+				})
+			);
+			for (let j = 0; j < settled.length; j += 1) {
+				const to = chunk[j].email;
+				const outcome = settled[j];
+				results.push({
+					to,
+					ok: outcome.status === 'fulfilled',
+					error: outcome.status === 'rejected' ? String(outcome.reason) : undefined
+				});
+			}
+		}
+
 		const ok = results.filter((r) => r.ok).length;
 		const failed = results.length - ok;
 

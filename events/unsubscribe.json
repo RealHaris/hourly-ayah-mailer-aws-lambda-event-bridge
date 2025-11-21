@@ -1,0 +1,13 @@
+{
+  "queryStringParameters": {
+    "id": "CONTACT_ID_HERE"
+  },
+  "requestContext": {
+    "http": {
+      "method": "GET",
+      "path": "/unsubscribe"
+    }
+  }
+}
+
+

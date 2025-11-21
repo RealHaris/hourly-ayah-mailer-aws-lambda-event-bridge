@@ -2,8 +2,8 @@
 
 const { randomUUID } = require('crypto');
 const { getRandomAyah } = require('../lib/quran');
-const { putAyah } = require('../lib/dynamo');
-const { sendEmail } = require('../lib/email');
+const { putAyah, getContactByEmail } = require('../lib/dynamo');
+const { sendEmail, buildReflectionEmailContent } = require('../lib/email');
 
 function json(statusCode, body) {
   return {
@@ -30,16 +30,11 @@ function isValidEmail(email) {
 }
 
 function buildEmailContent(ayah) {
-  const subjectBase = process.env.EMAIL_SUBJECT || 'Random Ayah';
-  const subject = `${subjectBase} - ${ayah.surahNameEnglish} (${ayah.surahNumber}:${ayah.ayahNumber})`;
-  const html = `
-<div style="font-family: system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, Noto Sans, Helvetica Neue, Arial, sans-serif;">
-  <div dir="rtl" style="font-size:20px;line-height:1.8;">${ayah.textArabic}</div>
-  <div style="margin-top:12px;font-size:16px;line-height:1.6;">${ayah.textEnglish}</div>
-  <div style="margin-top:12px;color:#666;">${ayah.surahNameEnglish} (${ayah.surahNumber}:${ayah.ayahNumber})</div>
-</div>`.trim();
-  const text = `${ayah.textArabic}\n\n${ayah.textEnglish}\n\n${ayah.surahNameEnglish} (${ayah.surahNumber}:${ayah.ayahNumber})`;
-  return { subject, html, text };
+  const baseUrl = process.env.HTTP_API_URL || '';
+  return (unsubscribeId, recipientName) => {
+    const unsubscribeUrl = baseUrl && unsubscribeId ? `${baseUrl}/unsubscribe?id=${encodeURIComponent(unsubscribeId)}` : '#';
+    return buildReflectionEmailContent(ayah, unsubscribeUrl, recipientName);
+  };
 }
 
 exports.handler = async (event) => {
@@ -57,7 +52,9 @@ exports.handler = async (event) => {
     };
     await putAyah(record);
 
-    const { subject, html, text } = buildEmailContent(ayah);
+    const existing = await getContactByEmail(email).catch(() => null);
+    const render = buildEmailContent(ayah);
+    const { subject, html, text } = render(existing && existing.id ? existing.id : undefined, existing && existing.name ? existing.name : undefined);
     await sendEmail({ to: email, subject, html, text });
     return json(200, { ok: true, sent: 1 });
   } catch (err) {

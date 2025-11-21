@@ -16,6 +16,7 @@ Hourly Lambda fetches a random Quran ayah (Arabic + English), stores it in Dynam
   - POST `/contacts`
   - DELETE `/contacts/{id}`
   - GET `/contacts`
+  - GET `/unsubscribe?id={id}`
 
 ### Prerequisites
 - AWS CLI, SAM CLI, Node.js 20
@@ -24,7 +25,7 @@ Hourly Lambda fetches a random Quran ayah (Arabic + English), stores it in Dynam
 
 ### Local Testing
 
-**How environment variables work**: They're automatically set from `template.yaml` during deployment - no `.env` file needed! See [LOCAL_TESTING.md](LOCAL_TESTING.md) for details.
+**How environment variables work**: They're automatically set from `template.yaml` during deployment - no `.env` file needed! See [LOCAL_TESTING.md](LOCAL_TESTING.md) for details. During deployment we also expose `HTTP_API_URL` to functions so emails can include a working unsubscribe link.
 
 **Quick local test**:
 ```powershell
@@ -133,6 +134,8 @@ Invoke-RestMethod -Method POST -Uri "$ApiUrl/send/direct" -ContentType "applicat
 # Send to all contacts
 Invoke-RestMethod -Method POST -Uri "$ApiUrl/send/all"
 
+# Unsubscribe by id (simulates clicking the link in email)
+Invoke-RestMethod -Uri "$ApiUrl/unsubscribe?id=$id"
 # Remove a contact
 Invoke-RestMethod -Method DELETE -Uri "$ApiUrl/contacts/$id"
 ```
@@ -164,6 +167,8 @@ curl -s -X POST "$BASE_URL/send/direct" \
 # Send to all contacts
 curl -X POST "$BASE_URL/send/all"
 
+# Unsubscribe by id
+curl "$BASE_URL/unsubscribe?id=$ID"
 # Remove a contact
 curl -X DELETE "$BASE_URL/contacts/$ID"
 ```

@@ -11,3 +11,16 @@
   }
 }
 
+{
+  "body": "{\"email\":\"test@example.com\",\"name\":\"Test User\"}",
+  "headers": {
+    "Content-Type": "application/json"
+  },
+  "requestContext": {
+    "http": {
+      "method": "POST",
+      "path": "/contacts"
+    }
+  }
+}
+

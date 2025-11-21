@@ -14,6 +14,7 @@ Globals:
         GMAIL_SECRET_ID: !Ref GmailSecretId
         MAIL_FROM: !Ref MailFrom
         EMAIL_SUBJECT: !Ref EmailSubject
+        HTTP_API_URL: !Sub https://${HttpApi}.execute-api.${AWS::Region}.amazonaws.com/v1
   HttpApi:
     CorsConfiguration:
       AllowOrigins:
@@ -218,6 +219,22 @@ Resources:
               Action:
                 - secretsmanager:GetSecretValue
               Resource: !Sub arn:${AWS::Partition}:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:${GmailSecretId}*
+
+  UnsubscribeFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: .
+      Handler: src/handlers/unsubscribe.handler
+      Events:
+        Api:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /unsubscribe
+            Method: GET
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref ContactsTable
 Outputs:
   HttpApiUrl:
     Description: Base URL for HTTP API

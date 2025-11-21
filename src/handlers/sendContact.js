@@ -3,7 +3,7 @@
 const { randomUUID } = require('crypto');
 const { getRandomAyah } = require('../lib/quran');
 const { putAyah, getContactById } = require('../lib/dynamo');
-const { sendEmail } = require('../lib/email');
+const { sendEmail, buildReflectionEmailContent } = require('../lib/email');
 
 function json(statusCode, body) {
 	return {
@@ -25,19 +25,6 @@ function parseBody(event) {
 	}
 }
 
-function buildEmailContent(ayah) {
-	const subjectBase = process.env.EMAIL_SUBJECT || 'Random Ayah';
-	const subject = `${subjectBase} - ${ayah.surahNameEnglish} (${ayah.surahNumber}:${ayah.ayahNumber})`;
-	const html = `
-<div style="font-family: system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, Noto Sans, Helvetica Neue, Arial, sans-serif;">
-  <div dir="rtl" style="font-size:20px;line-height:1.8;">${ayah.textArabic}</div>
-  <div style="margin-top:12px;font-size:16px;line-height:1.6;">${ayah.textEnglish}</div>
-  <div style="margin-top:12px;color:#666;">${ayah.surahNameEnglish} (${ayah.surahNumber}:${ayah.ayahNumber})</div>
-</div>`.trim();
-	const text = `${ayah.textArabic}\n\n${ayah.textEnglish}\n\n${ayah.surahNameEnglish} (${ayah.surahNumber}:${ayah.ayahNumber})`;
-	return { subject, html, text };
-}
-
 exports.handler = async (event) => {
 	try {
 		const { id } = parseBody(event);
@@ -57,7 +44,9 @@ exports.handler = async (event) => {
 		};
 		await putAyah(record);
 
-		const { subject, html, text } = buildEmailContent(ayah);
+		const baseUrl = process.env.HTTP_API_URL || '';
+		const unsubscribeUrl = baseUrl ? `${baseUrl}/unsubscribe?id=${encodeURIComponent(contact.id)}` : '#';
+		const { subject, html, text } = buildReflectionEmailContent(ayah, unsubscribeUrl, contact.name);
 		await sendEmail({ to: email, subject, html, text });
 		return json(200, { ok: true, sent: 1 });
 	} catch (err) {

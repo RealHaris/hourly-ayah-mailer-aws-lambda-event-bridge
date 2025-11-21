@@ -4,7 +4,7 @@
 
 When you deploy with SAM, environment variables are **automatically injected** into your Lambda functions from the `template.yaml` file:
 
-1. **In `template.yaml`** (lines 10-16):
+1. **In `template.yaml`** (lines 10-17):
    ```yaml
    Globals:
      Function:
@@ -15,6 +15,7 @@ When you deploy with SAM, environment variables are **automatically injected** i
            GMAIL_SECRET_ID: !Ref GmailSecretId      # From Parameters
            MAIL_FROM: !Ref MailFrom                 # From Parameters
            EMAIL_SUBJECT: !Ref EmailSubject         # From Parameters
+           HTTP_API_URL: !Sub https://${HttpApi}.execute-api.${AWS::Region}.amazonaws.com/v1
    ```
 
 2. **When Lambda runs**, these become `process.env.CONTACTS_TABLE_NAME`, etc.
@@ -68,16 +69,33 @@ Create a file `env.json` for local testing:
     "AYAHS_TABLE_NAME": "Ayahs",
     "GMAIL_SECRET_ID": "gmail/ayah-mailer",
     "MAIL_FROM": "harisxstudy@gmail.com",
-    "EMAIL_SUBJECT": "Random Ayah"
+    "EMAIL_SUBJECT": "Random Ayah",
+    "HTTP_API_URL": "http://127.0.0.1:3000"
   },
   "SendAllFunction": {
     "CONTACTS_TABLE_NAME": "Contacts",
     "AYAHS_TABLE_NAME": "Ayahs",
     "GMAIL_SECRET_ID": "gmail/ayah-mailer",
     "MAIL_FROM": "harisxstudy@gmail.com",
-    "EMAIL_SUBJECT": "Random Ayah"
+    "EMAIL_SUBJECT": "Random Ayah",
+    "HTTP_API_URL": "http://127.0.0.1:3000"
   },
   "ScheduledSendFunction": {
+    "CONTACTS_TABLE_NAME": "Contacts",
+    "AYAHS_TABLE_NAME": "Ayahs",
+    "GMAIL_SECRET_ID": "gmail/ayah-mailer",
+    "MAIL_FROM": "harisxstudy@gmail.com",
+    "EMAIL_SUBJECT": "Random Ayah"
+  },
+  "SendDirectFunction": {
+    "CONTACTS_TABLE_NAME": "Contacts",
+    "AYAHS_TABLE_NAME": "Ayahs",
+    "GMAIL_SECRET_ID": "gmail/ayah-mailer",
+    "MAIL_FROM": "harisxstudy@gmail.com",
+    "EMAIL_SUBJECT": "Random Ayah",
+    "HTTP_API_URL": "http://127.0.0.1:3000"
+  },
+  "UnsubscribeFunction": {
     "CONTACTS_TABLE_NAME": "Contacts",
     "AYAHS_TABLE_NAME": "Ayahs",
     "GMAIL_SECRET_ID": "gmail/ayah-mailer",
@@ -112,10 +130,13 @@ sam local invoke ScheduledSendFunction --env-vars env.json
 # Start local API Gateway
 sam local start-api --env-vars env.json
 
-# In another terminal, test endpoints:
-# GET http://localhost:3000/contacts
-# POST http://localhost:3000/contacts
-# etc.
+# In another terminal, test endpoints (no stage prefix in local):
+# GET  http://127.0.0.1:3000/contacts
+# POST http://127.0.0.1:3000/contacts
+# POST http://127.0.0.1:3000/send/contact
+# POST http://127.0.0.1:3000/send/direct
+# POST http://127.0.0.1:3000/send/all
+# GET  http://127.0.0.1:3000/unsubscribe?id=CONTACT_ID
 ```
 
 #### Test with cURL against local API
@@ -132,16 +153,19 @@ curl -X POST "$BASE_URL/contacts" \
   -H "Content-Type: application/json" \
   -d '{"email":"test@example.com","name":"Test User"}'
 
-# Send to one contact
+# Send to one contact (by ID)
 curl -X POST "$BASE_URL/send/contact" \
   -H "Content-Type: application/json" \
-  -d '{"email":"test@example.com"}'
+  -d '{"id":"CONTACT_ID_HERE"}'
 
 # Send to all contacts
 curl -X POST "$BASE_URL/send/all"
 
+# Unsubscribe by id (simulate email link)
+curl "$BASE_URL/unsubscribe?id=CONTACT_ID_HERE"
+
 # Remove a contact
-curl -X DELETE "$BASE_URL/contacts/test@example.com"
+curl -X DELETE "$BASE_URL/contacts/CONTACT_ID_HERE"
 ```
 
 **Note**: SAM Local will use your AWS credentials to connect to real DynamoDB and Secrets Manager. Make sure:
@@ -269,6 +293,7 @@ sam local invoke SendAllFunction --env-vars env.json
 | `GMAIL_SECRET_ID` | Parameter `GmailSecretId` | Secrets Manager secret name/ARN |
 | `MAIL_FROM` | Parameter `MailFrom` | Gmail "from" address |
 | `EMAIL_SUBJECT` | Parameter `EmailSubject` | Email subject prefix |
+| `HTTP_API_URL` | Computed from API id/region | Used to render unsubscribe link in email |
 
 All are set automatically during deployment - no manual `.env` file needed!
 

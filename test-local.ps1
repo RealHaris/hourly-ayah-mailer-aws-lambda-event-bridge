@@ -13,6 +13,7 @@ $env:AYAHS_TABLE_NAME = "Ayahs"
 $env:GMAIL_SECRET_ID = "gmail/ayah-mailer"
 $env:MAIL_FROM = "harisxstudy@gmail.com"
 $env:EMAIL_SUBJECT = "Random Ayah"
+$env:HTTP_API_URL = "http://127.0.0.1:3000"
 
 Write-Host "Testing $FunctionName..." -ForegroundColor Cyan
 Write-Host "Environment variables set:" -ForegroundColor Yellow
@@ -21,6 +22,7 @@ Write-Host "  AYAHS_TABLE_NAME = $env:AYAHS_TABLE_NAME"
 Write-Host "  GMAIL_SECRET_ID = $env:GMAIL_SECRET_ID"
 Write-Host "  MAIL_FROM = $env:MAIL_FROM"
 Write-Host "  EMAIL_SUBJECT = $env:EMAIL_SUBJECT"
+Write-Host "  HTTP_API_URL = $env:HTTP_API_URL"
 Write-Host ""
 
 # Build first
@@ -38,6 +40,7 @@ switch ($FunctionName) {
     "SendContactFunction" { $eventFile = "events/send-contact.json" }
     "DeleteContactFunction" { $eventFile = "events/delete-contact.json" }
     "SendDirectFunction" { $eventFile = "events/send-direct.json" }
+    "UnsubscribeFunction" { $eventFile = "events/unsubscribe.json" }
 }
 
 # Invoke function

@@ -73,6 +73,13 @@
         "method": "POST",
         "url": "{{baseUrl}}/send/all"
       }
+    },
+    {
+      "name": "Unsubscribe (by ID)",
+      "request": {
+        "method": "GET",
+        "url": "{{baseUrl}}/unsubscribe?id={{id}}"
+      }
     }
   ]
 }
