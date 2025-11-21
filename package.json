@@ -1,0 +1,18 @@
+{
+  "name": "quran-hourly-mailer",
+  "version": "1.0.0",
+  "description": "AWS Lambda to fetch random Quran ayah, store to DynamoDB, and send via Gmail.",
+  "main": "index.js",
+  "license": "MIT",
+  "scripts": {
+    "build": "echo Build handled by SAM",
+    "test": "echo No tests"
+  },
+  "dependencies": {
+    "@aws-sdk/client-dynamodb": "^3.632.0",
+    "@aws-sdk/lib-dynamodb": "^3.632.0",
+    "@aws-sdk/client-secrets-manager": "^3.632.0",
+    "nodemailer": "^6.9.13"
+  }
+}
+

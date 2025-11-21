@@ -1,0 +1,195 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Transform: AWS::Serverless-2016-10-31
+Description: Quran Hourly Ayah Mailer - SAM
+
+Globals:
+  Function:
+    Runtime: nodejs20.x
+    Timeout: 30
+    MemorySize: 256
+    Environment:
+      Variables:
+        CONTACTS_TABLE_NAME: !Ref ContactsTable
+        AYAHS_TABLE_NAME: !Ref AyahsTable
+        GMAIL_SECRET_ID: !Ref GmailSecretId
+        MAIL_FROM: !Ref MailFrom
+        EMAIL_SUBJECT: !Ref EmailSubject
+  HttpApi:
+    CorsConfiguration:
+      AllowOrigins:
+        - "*"
+      AllowMethods:
+        - GET
+        - POST
+        - DELETE
+        - OPTIONS
+      AllowHeaders:
+        - "*"
+
+Parameters:
+  GmailSecretId:
+    Type: String
+    Default: gmail/ayah-mailer
+    Description: Secrets Manager secret name or ARN containing Gmail username and app_password fields.
+  MailFrom:
+    Type: String
+    Default: your@gmail.com
+    Description: From address to use for sending emails (Gmail address).
+  EmailSubject:
+    Type: String
+    Default: Random Ayah
+    Description: Email subject prefix.
+
+Resources:
+  ContactsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: Contacts
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: email
+          AttributeType: S
+      KeySchema:
+        - AttributeName: email
+          KeyType: HASH
+
+  AyahsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: Ayahs
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: id
+          AttributeType: S
+      KeySchema:
+        - AttributeName: id
+          KeyType: HASH
+
+  HttpApi:
+    Type: AWS::Serverless::HttpApi
+    Properties:
+      StageName: v1
+
+  ScheduledSendFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: .
+      Handler: src/handlers/scheduledSend.handler
+      Events:
+        HourlyRule:
+          Type: Schedule
+          Properties:
+            Schedule: cron(0 * * * ? *)
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref ContactsTable
+        - DynamoDBCrudPolicy:
+            TableName: !Ref AyahsTable
+        - Statement:
+            - Effect: Allow
+              Action:
+                - secretsmanager:GetSecretValue
+              Resource: !Sub arn:${AWS::Partition}:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:${GmailSecretId}*
+
+  SendAllFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: .
+      Handler: src/handlers/sendAll.handler
+      Events:
+        Api:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /send/all
+            Method: POST
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref ContactsTable
+        - DynamoDBCrudPolicy:
+            TableName: !Ref AyahsTable
+        - Statement:
+            - Effect: Allow
+              Action:
+                - secretsmanager:GetSecretValue
+              Resource: !Sub arn:${AWS::Partition}:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:${GmailSecretId}*
+
+  SendContactFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: .
+      Handler: src/handlers/sendContact.handler
+      Events:
+        Api:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /send/contact
+            Method: POST
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref ContactsTable
+        - DynamoDBCrudPolicy:
+            TableName: !Ref AyahsTable
+        - Statement:
+            - Effect: Allow
+              Action:
+                - secretsmanager:GetSecretValue
+              Resource: !Sub arn:${AWS::Partition}:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:${GmailSecretId}*
+
+  AddContactFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: .
+      Handler: src/handlers/addContact.handler
+      Events:
+        Api:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /contacts
+            Method: POST
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref ContactsTable
+
+  DeleteContactFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: .
+      Handler: src/handlers/deleteContact.handler
+      Events:
+        Api:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /contacts/{email}
+            Method: DELETE
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref ContactsTable
+
+  ListContactsFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: .
+      Handler: src/handlers/listContacts.handler
+      Events:
+        Api:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /contacts
+            Method: GET
+      Policies:
+        - DynamoDBReadPolicy:
+            TableName: !Ref ContactsTable
+
+Outputs:
+  HttpApiUrl:
+    Description: Base URL for HTTP API
+    Value: !Sub https://${HttpApi}.execute-api.${AWS::Region}.amazonaws.com/v1
+  ContactsTableName:
+    Value: !Ref ContactsTable
+  AyahsTableName:
+    Value: !Ref AyahsTable
