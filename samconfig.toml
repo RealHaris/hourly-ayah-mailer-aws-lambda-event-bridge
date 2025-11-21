@@ -7,7 +7,7 @@ s3_prefix = "ayah-mailer"
 region = "ap-south-1"
 confirm_changeset = true
 capabilities = "CAPABILITY_IAM"
-disable_rollback = true
+disable_rollback = false
 parameter_overrides = "GmailSecretId=\"gmail/ayah-mailer\" MailFrom=\"harisxstudy@gmail.com\" EmailSubject=\"Random aYAH\""
 image_repositories = []
 

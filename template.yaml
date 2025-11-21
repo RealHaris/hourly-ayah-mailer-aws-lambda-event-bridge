@@ -43,6 +43,8 @@ Parameters:
 Resources:
   ContactsTable:
     Type: AWS::DynamoDB::Table
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
     Properties:
       TableName: Contacts
       BillingMode: PAY_PER_REQUEST
@@ -64,6 +66,8 @@ Resources:
 
   AyahsTable:
     Type: AWS::DynamoDB::Table
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
     Properties:
       TableName: Ayahs
       BillingMode: PAY_PER_REQUEST
