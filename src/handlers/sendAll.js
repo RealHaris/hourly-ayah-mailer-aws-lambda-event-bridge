@@ -19,7 +19,6 @@ function json(statusCode, body) {
 
 function getBaseUrl(event) {
 	try {
-		console.log('[sendAll] Getting base URL', { event });
 		const headers = (event && event.headers) || {};
 		const proto = headers['x-forwarded-proto'] || headers['X-Forwarded-Proto'] || 'https';
 		const host = headers.host || headers.Host;

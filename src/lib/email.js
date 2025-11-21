@@ -563,7 +563,6 @@ async function getGmailCredentials() {
     if (!secretId) {
         throw new Error('GMAIL_SECRET_ID env var not set');
     }
-    console.log('[secrets] Reading secret from Secrets Manager', { secretId });
     const cmd = new GetSecretValueCommand({ SecretId: secretId });
     const res = await secretsClient.send(cmd);
     if (!res || (!res.SecretString && !res.SecretBinary)) {
@@ -572,23 +571,12 @@ async function getGmailCredentials() {
     const payload = res.SecretString
         ? res.SecretString
         : Buffer.from(res.SecretBinary, 'base64').toString('utf-8');
-    // avoid logging secret content, log metadata only
-    console.log('[secrets] Parsing secret payload', { length: typeof payload === 'string' ? payload.length : 0 });
     const creds = parseSecretPayloadToCreds(payload);
     if (!creds || !creds.username || !creds.app_password) {
         throw new Error(
             'Secret must contain username and app_password fields (JSON preferred: { "username": "...", "app_password": "..." })'
         );
     }
-    // mask username to avoid leaking full email in logs
-    const usernameMasked =
-        typeof creds.username === 'string' && creds.username.includes('@')
-            ? `${creds.username.slice(0, 2)}***@${creds.username.split('@')[1]}`
-            : '***';
-    console.log('[secrets] Parsed secret fields', {
-        usernameMasked,
-        appPasswordLength: typeof creds.app_password === 'string' ? creds.app_password.length : undefined
-    });
     cachedSecret = creds;
     return creds;
 }
@@ -605,20 +593,12 @@ async function getTransporter() {
             pass: creds.app_password
         }
     });
-    console.log('[email] SMTP transporter created (gmail smtp over 465)');
     return cachedTransporter;
 }
 
 async function sendEmail({ to, subject, html, text }) {
     const transporter = await getTransporter();
     const from = process.env.MAIL_FROM || (await getGmailCredentials()).username;
-    console.log('[email] Sending email', {
-        from,
-        to,
-        subjectLength: typeof subject === 'string' ? subject.length : undefined,
-        htmlLength: typeof html === 'string' ? html.length : undefined,
-        textLength: typeof text === 'string' ? text.length : undefined
-    });
     return transporter.sendMail({
         from,
         to,

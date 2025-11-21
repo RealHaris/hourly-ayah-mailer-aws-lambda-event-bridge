@@ -4,18 +4,12 @@ const API_BASE = 'https://api.alquran.cloud/v1';
 
 async function fetchJson(url) {
   // Node 20 has global fetch
-  console.log('[quran] Fetching URL', url);
   const res = await fetch(url, { method: 'GET' });
   if (!res.ok) {
     const text = await res.text().catch(() => '');
     throw new Error(`HTTP ${res.status} ${res.statusText} for ${url} ${text}`);
   }
   const json = await res.json();
-  console.log('[quran] Fetched OK', {
-    url,
-    keys: Object.keys(json || {}),
-    hasData: !!(json && json.data)
-  });
   return json;
 }
 
@@ -25,7 +19,6 @@ async function getMeta() {
     throw new Error('Unexpected meta response from Quran API');
   }
   const refs = meta.data.surahs.references;
-  console.log('[quran] Meta references loaded', { count: refs.length });
   return refs;
 }
 
@@ -38,10 +31,6 @@ async function getRandomAyah() {
   const references = await getMeta();
   const surahRef = references[randomInt(0, references.length - 1)];
   const ayahNumberInSurah = randomInt(1, surahRef.numberOfAyahs);
-  console.log('[quran] Selected', {
-    surahNumber: surahRef.number,
-    ayahNumberInSurah
-  });
 
   const ayahResp = await fetchJson(
     `${API_BASE}/ayah/${surahRef.number}:${ayahNumberInSurah}/editions/quran-uthmani,en.sahih`
@@ -60,10 +49,6 @@ async function getRandomAyah() {
       english = item;
     }
   }
-  console.log('[quran] Editions resolved', {
-    hasArabic: !!arabic,
-    hasEnglish: !!english
-  });
 
   if (!arabic || !english) {
     throw new Error('Could not find both Arabic and English editions for ayah');
