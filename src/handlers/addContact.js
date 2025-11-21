@@ -32,10 +32,11 @@ exports.handler = async (event) => {
 		if (!email || !isValidEmail(email)) {
 			return json(400, { ok: false, error: 'Valid email is required' });
 		}
-		await addContact(email, name);
-		return json(201, { ok: true, email, name });
+		const created = await addContact(email, name);
+		return json(201, { ok: true, id: created.id, email, name });
 	} catch (err) {
-		if (String(err).includes('ConditionalCheckFailedException')) {
+		const msg = String(err);
+		if (msg.includes('Contact already exists') || msg.includes('ConditionalCheckFailedException')) {
 			return json(409, { ok: false, error: 'Contact already exists' });
 		}
 		console.error(err);

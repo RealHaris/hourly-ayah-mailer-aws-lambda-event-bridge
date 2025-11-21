@@ -6,19 +6,39 @@ Hourly Lambda fetches a random Quran ayah (Arabic + English), stores it in Dynam
 - EventBridge Rule (every hour) → Lambda `ScheduledSendFunction`
 - Quran API: `https://api.alquran.cloud`
 - Data:
-  - DynamoDB `Contacts` (pk: `email`)
+  - DynamoDB `Contacts` (pk: `id`, GSI: `EmailIndex` on `email`)
   - DynamoDB `Ayahs`    (pk: `id`)
 - Email: Gmail SMTP via Nodemailer. Gmail credentials are stored in AWS Secrets Manager (`gmail/ayah-mailer`).
 - HTTP API (API Gateway HTTP API) endpoints:
   - POST `/send/all`
-  - POST `/send/contact`
+  - POST `/send/contact` (by contact id in body)
+  - POST `/send/direct` (by raw email in body)
   - POST `/contacts`
-  - DELETE `/contacts/{email}`
+  - DELETE `/contacts/{id}`
   - GET `/contacts`
 
 ### Prerequisites
 - AWS CLI, SAM CLI, Node.js 20
 - AWS account/credentials configured (IAM user or SSO)
+- Docker Desktop (for local testing with SAM Local)
+
+### Local Testing
+
+**How environment variables work**: They're automatically set from `template.yaml` during deployment - no `.env` file needed! See [LOCAL_TESTING.md](LOCAL_TESTING.md) for details.
+
+**Quick local test**:
+```powershell
+# Build
+sam build
+
+# Test a function locally (requires AWS credentials and real DynamoDB tables)
+sam local invoke ListContactsFunction --env-vars env.json
+
+# Or run local API server
+sam local start-api --env-vars env.json
+```
+
+See [LOCAL_TESTING.md](LOCAL_TESTING.md) for complete local testing guide.
 
 ### Quick start (PowerShell)
 Set your values:
@@ -31,7 +51,7 @@ $Proj     = "D:\apps\wrok\extras\aws-lambda"
 
 Install tools (if needed):
 ```powershell
-winget install -e --id Amazon.AWSCLI --source winget --accept-source-agreements --accept-package-agreements
+winget install -e --id Amazon.AWSCLI --source winget --accept-source-agreements --accep-package-agreements
 winget install -e --id AWS.AWSSAMCLI --source winget --accept-source-agreements --accept-package-agreements
 winget install -e --id OpenJS.NodeJS.LTS --source winget --accept-source-agreements --accept-package-agreements
 ```
@@ -96,20 +116,56 @@ $ApiUrl
 ```powershell
 # Add contact
 $body = @{ email="recipient@example.com"; name="Recipient" } | ConvertTo-Json
-Invoke-RestMethod -Method POST -Uri "$ApiUrl/contacts" -ContentType "application/json" -Body $body
+$created = Invoke-RestMethod -Method POST -Uri "$ApiUrl/contacts" -ContentType "application/json" -Body $body
+$id = $created.id
 
 # List contacts
 Invoke-RestMethod -Uri "$ApiUrl/contacts"
 
-# Send to one contact
-$body = @{ email="recipient@example.com" } | ConvertTo-Json
+# Send to one contact (by ID)
+$body = @{ id="$id" } | ConvertTo-Json
 Invoke-RestMethod -Method POST -Uri "$ApiUrl/send/contact" -ContentType "application/json" -Body $body
+
+# Send direct (by email)
+$body = @{ email="recipient@example.com" } | ConvertTo-Json
+Invoke-RestMethod -Method POST -Uri "$ApiUrl/send/direct" -ContentType "application/json" -Body $body
 
 # Send to all contacts
 Invoke-RestMethod -Method POST -Uri "$ApiUrl/send/all"
 
 # Remove a contact
-Invoke-RestMethod -Method DELETE -Uri "$ApiUrl/contacts/recipient@example.com"
+Invoke-RestMethod -Method DELETE -Uri "$ApiUrl/contacts/$id"
+```
+
+### API quick tests (cURL)
+```bash
+# Set your live base URL
+BASE_URL="https://{apiId}.execute-api.{region}.amazonaws.com/v1"
+
+# List contacts
+curl "$BASE_URL/contacts"
+
+# Add contact
+CREATE=$(curl -s -X POST "$BASE_URL/contacts" \
+  -H "Content-Type: application/json" \
+  -d '{"email":"recipient@example.com","name":"Recipient"}')
+ID=$(echo "$CREATE" | sed -n 's/.*"id":"\([^"]*\)".*/\1/p')
+
+# Send to one contact (by ID)
+curl -s -X POST "$BASE_URL/send/contact" \
+  -H "Content-Type: application/json" \
+  -d "{\"id\":\"$ID\"}"
+
+# Send direct (by email)
+curl -s -X POST "$BASE_URL/send/direct" \
+  -H "Content-Type: application/json" \
+  -d '{"email":"recipient@example.com"}'
+
+# Send to all contacts
+curl -X POST "$BASE_URL/send/all"
+
+# Remove a contact
+curl -X DELETE "$BASE_URL/contacts/$ID"
 ```
 
 ### Deploy new changes

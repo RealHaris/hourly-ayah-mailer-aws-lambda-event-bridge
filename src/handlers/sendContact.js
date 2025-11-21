@@ -2,7 +2,7 @@
 
 const { randomUUID } = require('crypto');
 const { getRandomAyah } = require('../lib/quran');
-const { putAyah, getContact } = require('../lib/dynamo');
+const { putAyah, getContactById } = require('../lib/dynamo');
 const { sendEmail } = require('../lib/email');
 
 function json(statusCode, body) {
@@ -40,14 +40,15 @@ function buildEmailContent(ayah) {
 
 exports.handler = async (event) => {
 	try {
-		const { email } = parseBody(event);
-		if (!email) {
-			return json(400, { ok: false, error: 'email is required' });
+		const { id } = parseBody(event);
+		if (!id) {
+			return json(400, { ok: false, error: 'id is required' });
 		}
-		const contact = await getContact(email);
+		const contact = await getContactById(id);
 		if (!contact) {
 			return json(404, { ok: false, error: 'Contact not found' });
 		}
+		const email = contact.email;
 		const ayah = await getRandomAyah();
 		const record = {
 			id: randomUUID(),

@@ -1,0 +1,11 @@
+{
+  "pathParameters": {
+    "id": "CONTACT_ID_HERE"
+  },
+  "requestContext": {
+    "http": {
+      "method": "DELETE",
+      "path": "/contacts/{id}"
+    }
+  }
+}

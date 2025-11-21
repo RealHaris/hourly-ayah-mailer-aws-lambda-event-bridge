@@ -20,4 +20,7 @@ Thumbs.db
 .env
 *.local
 
+# Local testing (env.json can be committed as template, but customize for your setup)
+env.json
+
 

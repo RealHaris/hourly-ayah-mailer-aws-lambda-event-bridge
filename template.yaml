@@ -47,11 +47,20 @@ Resources:
       TableName: Contacts
       BillingMode: PAY_PER_REQUEST
       AttributeDefinitions:
+        - AttributeName: id
+          AttributeType: S
         - AttributeName: email
           AttributeType: S
       KeySchema:
-        - AttributeName: email
+        - AttributeName: id
           KeyType: HASH
+      GlobalSecondaryIndexes:
+        - IndexName: EmailIndex
+          KeySchema:
+            - AttributeName: email
+              KeyType: HASH
+          Projection:
+            ProjectionType: ALL
 
   AyahsTable:
     Type: AWS::DynamoDB::Table
@@ -163,7 +172,7 @@ Resources:
           Type: HttpApi
           Properties:
             ApiId: !Ref HttpApi
-            Path: /contacts/{email}
+            Path: /contacts/{id}
             Method: DELETE
       Policies:
         - DynamoDBCrudPolicy:
@@ -185,6 +194,26 @@ Resources:
         - DynamoDBReadPolicy:
             TableName: !Ref ContactsTable
 
+  SendDirectFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: .
+      Handler: src/handlers/sendDirect.handler
+      Events:
+        Api:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /send/direct
+            Method: POST
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref AyahsTable
+        - Statement:
+            - Effect: Allow
+              Action:
+                - secretsmanager:GetSecretValue
+              Resource: !Sub arn:${AWS::Partition}:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:${GmailSecretId}*
 Outputs:
   HttpApiUrl:
     Description: Base URL for HTTP API

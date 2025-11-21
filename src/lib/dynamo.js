@@ -6,8 +6,10 @@ const {
 	PutCommand,
 	ScanCommand,
 	GetCommand,
-	DeleteCommand
+	DeleteCommand,
+	QueryCommand
 } = require('@aws-sdk/lib-dynamodb');
+const { randomUUID } = require('crypto');
 
 const CONTACTS_TABLE_NAME = process.env.CONTACTS_TABLE_NAME;
 const AYAHS_TABLE_NAME = process.env.AYAHS_TABLE_NAME;
@@ -47,48 +49,75 @@ async function listContacts() {
 	return items;
 }
 
-async function getContact(email) {
+async function getContactById(id) {
 	const res = await ddb.send(
 		new GetCommand({
 			TableName: CONTACTS_TABLE_NAME,
-			Key: { email }
+			Key: { id }
 		})
 	);
 	return res.Item || null;
 }
 
+async function getContactByEmail(email) {
+	const res = await ddb.send(
+		new QueryCommand({
+			TableName: CONTACTS_TABLE_NAME,
+			IndexName: 'EmailIndex',
+			KeyConditionExpression: '#e = :e',
+			ExpressionAttributeNames: { '#e': 'email' },
+			ExpressionAttributeValues: { ':e': email },
+			Limit: 1
+		})
+	);
+	if (Array.isArray(res.Items) && res.Items.length > 0) {
+		return res.Items[0];
+	}
+	return null;
+}
+
 async function addContact(email, name) {
+	// enforce unique email using GSI
+	const existing = await getContactByEmail(email);
+	if (existing) {
+		const err = new Error('Contact already exists');
+		err.code = 'ContactExists';
+		throw err;
+	}
+	const id = randomUUID();
 	await ddb.send(
 		new PutCommand({
 			TableName: CONTACTS_TABLE_NAME,
 			Item: {
+				id,
 				email,
 				name,
 				createdAt: new Date().toISOString()
 			},
-			ConditionExpression: 'attribute_not_exists(#e)',
+			ConditionExpression: 'attribute_not_exists(#id)',
 			ExpressionAttributeNames: {
-				'#e': 'email'
+				'#id': 'id'
 			}
 		})
 	);
-	return { email, name };
+	return { id, email, name };
 }
 
-async function deleteContact(email) {
+async function deleteContact(id) {
 	await ddb.send(
 		new DeleteCommand({
 			TableName: CONTACTS_TABLE_NAME,
-			Key: { email }
+			Key: { id }
 		})
 	);
-	return { email };
+	return { id };
 }
 
 module.exports = {
 	putAyah,
 	listContacts,
-	getContact,
+	getContactById,
+	getContactByEmail,
 	addContact,
 	deleteContact
 };

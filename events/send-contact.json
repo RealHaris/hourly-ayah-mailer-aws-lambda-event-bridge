@@ -1,0 +1,13 @@
+{
+  "body": "{\"id\":\"CONTACT_ID_HERE\"}",
+  "headers": {
+    "Content-Type": "application/json"
+  },
+  "requestContext": {
+    "http": {
+      "method": "POST",
+      "path": "/send/contact"
+    }
+  }
+}
+

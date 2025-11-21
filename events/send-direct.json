@@ -1,0 +1,12 @@
+{
+  "body": "{\"email\":\"test@example.com\"}",
+  "headers": {
+    "Content-Type": "application/json"
+  },
+  "requestContext": {
+    "http": {
+      "method": "POST",
+      "path": "/send/direct"
+    }
+  }
+}

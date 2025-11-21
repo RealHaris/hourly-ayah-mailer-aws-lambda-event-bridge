@@ -55,6 +55,13 @@ Send to one contact:
 ```bash
 curl -X POST "$HttpApiUrl/send/contact" \
   -H "Content-Type: application/json" \
+  -d '{"id":"CONTACT_ID_HERE"}'
+```
+
+Send direct by email (does not require a saved contact):
+```bash
+curl -X POST "$HttpApiUrl/send/direct" \
+  -H "Content-Type: application/json" \
   -d '{"email":"recipient@example.com"}'
 ```
 
@@ -65,7 +72,7 @@ curl -X POST "$HttpApiUrl/send/all"
 
 Remove a contact:
 ```bash
-curl -X DELETE "$HttpApiUrl/contacts/recipient@example.com"
+curl -X DELETE "$HttpApiUrl/contacts/CONTACT_ID_HERE"
 ```
 
 ## 4) Hourly scheduler
