@@ -1,0 +1,15 @@
+version = 0.1
+
+[default.deploy.parameters]
+stack_name = "ayah-mailer"
+resolve_s3 = true
+s3_prefix = "ayah-mailer"
+region = "ap-south-1"
+confirm_changeset = true
+capabilities = "CAPABILITY_IAM"
+disable_rollback = true
+parameter_overrides = "GmailSecretId=\"gmail/ayah-mailer\" MailFrom=\"harisxstudy@gmail.com\" EmailSubject=\"Random aYAH\""
+image_repositories = []
+
+[default.global.parameters]
+region = "ap-south-1"

@@ -1,0 +1,23 @@
+# Node / package
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# SAM / build artifacts
+.aws-sam/
+.serverless/
+dist/
+build/
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+
+# Env / secrets (use AWS Secrets Manager instead)
+.env
+*.local
+
+

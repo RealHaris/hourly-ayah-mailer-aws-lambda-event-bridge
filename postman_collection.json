@@ -1,0 +1,65 @@
+{
+  "info": {
+    "name": "Quran Hourly Ayah Mailer",
+    "_postman_id": "2f5d7a2a-5a44-4a3a-9c0d-collection",
+    "description": "Postman collection for contacts management and manual send endpoints.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "baseUrl", "value": "https://example.execute-api.us-east-1.amazonaws.com/v1" },
+    { "key": "email", "value": "recipient@example.com" }
+  ],
+  "item": [
+    {
+      "name": "List Contacts",
+      "request": {
+        "method": "GET",
+        "url": "{{baseUrl}}/contacts"
+      }
+    },
+    {
+      "name": "Add Contact",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"email\": \"{{email}}\",\n  \"name\": \"Recipient\"\n}"
+        },
+        "url": "{{baseUrl}}/contacts"
+      }
+    },
+    {
+      "name": "Remove Contact",
+      "request": {
+        "method": "DELETE",
+        "url": "{{baseUrl}}/contacts/{{email}}"
+      }
+    },
+    {
+      "name": "Send to One Contact",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"email\": \"{{email}}\"\n}"
+        },
+        "url": "{{baseUrl}}/send/contact"
+      }
+    },
+    {
+      "name": "Send to All Contacts",
+      "request": {
+        "method": "POST",
+        "url": "{{baseUrl}}/send/all"
+      }
+    }
+  ]
+}
+
+

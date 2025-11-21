@@ -1,0 +1,5 @@
+" `\x0a  --region ap-south-1\x0a;5c9f2cb7-3256-4be6-978a-64b5b7034c75{
+    "ARN": "arn:aws:secretsmanager:ap-south-1:915028408783:secret:gmail/ayah-mailer-2sTr67",
+    "Name": "gmail/ayah-mailer",
+    "VersionId": "aac60df3-dd6b-4353-bde0-a9eda0801c6a"
+}
