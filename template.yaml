@@ -13,7 +13,7 @@ Globals:
         AYAHS_TABLE_NAME: !Ref AyahsTable
         GMAIL_SECRET_ID: !Ref GmailSecretId
         MAIL_FROM: !Ref MailFrom
-        HTTP_API_URL: !Sub https://${HttpApi}.execute-api.${AWS::Region}.amazonaws.com/v1
+        HTTP_API_URL: !Ref HttpApiUrl
   HttpApi:
     CorsConfiguration:
       AllowOrigins:
@@ -35,6 +35,10 @@ Parameters:
     Type: String
     Default: your@gmail.com
     Description: From address to use for sending emails (Gmail address).
+  HttpApiUrl:
+    Type: String
+    Default: ""
+    Description: Public base URL for the HTTP API (e.g., https://{apiId}.execute-api.{region}.amazonaws.com/v1). Leave empty to disable unsubscribe links until known.
 
 Resources:
   ContactsTable:
