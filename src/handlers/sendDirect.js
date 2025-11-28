@@ -4,6 +4,7 @@ const { randomUUID } = require('crypto');
 const { getRandomAyah } = require('../lib/quran');
 const { putAyah } = require('../lib/dynamo');
 const { sendEmail, buildReflectionEmailContent } = require('../lib/email');
+const { validateSendDirect } = require('../lib/validation');
 
 function json(statusCode, body) {
   return {
@@ -17,18 +18,6 @@ function json(statusCode, body) {
   };
 }
 
-function parseBody(event) {
-  try {
-    return event && event.body ? JSON.parse(event.body) : {};
-  } catch {
-    return {};
-  }
-}
-
-function isValidEmail(email) {
-  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
-}
-
 function buildEmailContent(ayah) {
   return (recipientName) => {
     // Direct sends: no unsubscribe link or base URL
@@ -38,10 +27,8 @@ function buildEmailContent(ayah) {
 
 exports.handler = async (event) => {
   try {
-    const { email } = parseBody(event);
-    if (!email || !isValidEmail(email)) {
-      return json(400, { ok: false, error: 'Valid email is required' });
-    }
+    const parsed = (() => { try { return event && event.body ? JSON.parse(event.body) : {}; } catch { return {}; } })();
+    const { email } = validateSendDirect(parsed);
 
     const ayah = await getRandomAyah();
     const record = {
@@ -53,9 +40,15 @@ exports.handler = async (event) => {
 
     const render = buildEmailContent(ayah);
     const { subject, html, text } = render(undefined);
-    await sendEmail({ to: email, subject, html, text });
+    const attachments = ayah.audioUrl
+      ? [{ filename: `surah-${ayah.surahNumber}-ayah-${ayah.ayahNumber}.mp3`, path: ayah.audioUrl }]
+      : undefined;
+    await sendEmail({ to: email, subject, html, text, attachments });
     return json(200, { ok: true, sent: 1 });
   } catch (err) {
+    if (err && err.code === 'BadRequest') {
+      return json(400, { ok: false, error: err.message });
+    }
     console.error(err);
     return json(500, { ok: false, error: String(err) });
   }

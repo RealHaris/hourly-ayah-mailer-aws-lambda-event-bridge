@@ -60,9 +60,12 @@ async function main() {
   const map = {
     listContacts: { file: './src/handlers/listContacts', fnKey: 'ListContactsFunction' },
     addContact: { file: './src/handlers/addContact', fnKey: 'AddContactFunction' },
+		updateContact: { file: './src/handlers/updateContact', fnKey: 'UpdateContactFunction' },
     deleteContact: { file: './src/handlers/deleteContact', fnKey: 'DeleteContactFunction' },
     sendContact: { file: './src/handlers/sendContact', fnKey: 'SendContactFunction' },
     sendDirect: { file: './src/handlers/sendDirect', fnKey: 'SendDirectFunction' },
+		sendDirectWhatsapp: { file: './src/handlers/sendDirectWhatsapp', fnKey: 'SendDirectWhatsappFunction' },
+		whatsappQr: { file: './src/handlers/whatsappQr', fnKey: 'WhatsAppQrFunction' },
     sendAll: { file: './src/handlers/sendAll', fnKey: 'SendAllFunction' },
     scheduledSend: { file: './src/handlers/scheduledSend', fnKey: 'ScheduledSendFunction' },
     unsubscribe: { file: './src/handlers/unsubscribe', fnKey: 'UnsubscribeFunction' }
@@ -79,9 +82,28 @@ async function main() {
   let event = buildEventBase();
   switch (cmd) {
     case 'addContact': {
-      const email = process.env.TEST_EMAIL || 'test@example.com';
-      const name = process.env.TEST_NAME || 'Test User';
-      event = { ...event, body: JSON.stringify({ email, name }) };
+			const email = process.env.TEST_EMAIL || 'test@example.com';
+			const name = process.env.TEST_NAME || 'Test User';
+			const phone = process.env.TEST_PHONE || '';
+			const send_email = process.env.TEST_SEND_EMAIL !== 'false';
+			const send_whatsapp = process.env.TEST_SEND_WHATSAPP === 'true';
+			event = { ...event, body: JSON.stringify({ email, name, phone, send_email, send_whatsapp }) };
+			break;
+		}
+		case 'updateContact': {
+			const id = process.env.TEST_CONTACT_ID || 'CONTACT_ID_HERE';
+			const email = process.env.TEST_EMAIL;
+			const name = process.env.TEST_NAME;
+			const phone = process.env.TEST_PHONE;
+			const send_email = process.env.TEST_SEND_EMAIL;
+			const send_whatsapp = process.env.TEST_SEND_WHATSAPP;
+			const body = {};
+			if (email !== undefined) body.email = email;
+			if (name !== undefined) body.name = name;
+			if (phone !== undefined) body.phone = phone;
+			if (send_email !== undefined) body.send_email = send_email === 'true';
+			if (send_whatsapp !== undefined) body.send_whatsapp = send_whatsapp === 'true';
+			event = { ...event, pathParameters: { id }, body: JSON.stringify({ id, ...body }) };
       break;
     }
     case 'deleteContact': {
@@ -99,6 +121,15 @@ async function main() {
       event = { ...event, body: JSON.stringify({ email }) };
       break;
     }
+		case 'sendDirectWhatsapp': {
+			const phone = process.env.TEST_PHONE || '+15551234567';
+			event = { ...event, body: JSON.stringify({ phone }) };
+			break;
+		}
+		case 'whatsappQr': {
+			// no body needed
+			break;
+		}
     case 'unsubscribe': {
       const id = process.env.TEST_CONTACT_ID || 'CONTACT_ID_HERE';
       event = { ...event, queryStringParameters: { id } };

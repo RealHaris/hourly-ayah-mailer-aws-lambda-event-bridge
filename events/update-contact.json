@@ -1,0 +1,5 @@
+{
+  "pathParameters": { "id": "CONTACT_ID_HERE" },
+  "body": "{\"id\":\"CONTACT_ID_HERE\",\"email\":\"updated@example.com\",\"phone\":\"+15551230001\",\"name\":\"Updated User\",\"send_email\":true,\"send_whatsapp\":true}"
+}
+

@@ -4,6 +4,8 @@ const { randomUUID } = require('crypto');
 const { getRandomAyah } = require('../lib/quran');
 const { putAyah, getContactById } = require('../lib/dynamo');
 const { sendEmail, buildReflectionEmailContent } = require('../lib/email');
+const { sendWhatsApp } = require('../lib/whatsapp');
+const { validateSendContact } = require('../lib/validation');
 
 function json(statusCode, body) {
 	return {
@@ -15,14 +17,6 @@ function json(statusCode, body) {
 		},
 		body: JSON.stringify(body)
 	};
-}
-
-function parseBody(event) {
-	try {
-		return event && event.body ? JSON.parse(event.body) : {};
-	} catch {
-		return {};
-	}
 }
 
 function getBaseUrl(event) {
@@ -40,9 +34,23 @@ function getBaseUrl(event) {
 	return '';
 }
 
+function buildWhatsAppText(ayah) {
+	const lines = [];
+	if (ayah.textArabic) lines.push(ayah.textArabic);
+	if (ayah.textEnglish) lines.push('', ayah.textEnglish);
+	if (ayah.textUrdu) lines.push('', ayah.textUrdu);
+	if (ayah.tafseerText) lines.push('', `Tafsir:\\n${ayah.tafseerText}`);
+	lines.push(
+		'',
+		`Surah ${ayah.surahNameEnglish} (${ayah.surahNumber}:${ayah.ayahNumber})${ayah.audioUrl ? `\\nAudio: ${ayah.audioUrl}` : ''}`
+	);
+	return lines.join('\\n');
+}
+
 exports.handler = async (event) => {
 	try {
-		const { id } = parseBody(event);
+		const parsed = (() => { try { return event && event.body ? JSON.parse(event.body) : {}; } catch { return {}; } })();
+		const { id } = validateSendContact(parsed);
 		if (!id) {
 			return json(400, { ok: false, error: 'id is required' });
 		}
@@ -50,7 +58,6 @@ exports.handler = async (event) => {
 		if (!contact) {
 			return json(404, { ok: false, error: 'Contact not found' });
 		}
-		const email = contact.email;
 		const ayah = await getRandomAyah();
 		const record = {
 			id: randomUUID(),
@@ -60,11 +67,41 @@ exports.handler = async (event) => {
 		await putAyah(record);
 
 		const baseUrl = getBaseUrl(event) || process.env.HTTP_API_URL || '';
-		const unsubscribeUrl = baseUrl ? `${baseUrl}/unsubscribe?id=${encodeURIComponent(contact.id)}` : '#';
-		const { subject, html, text } = buildReflectionEmailContent(ayah, unsubscribeUrl, contact.name, true);
-		await sendEmail({ to: email, subject, html, text });
-		return json(200, { ok: true, sent: 1 });
+		const ops = [];
+		const doEmail = contact.send_email !== false && !!contact.email;
+		const doWa = contact.send_whatsapp === true && !!contact.phone;
+
+		if (doEmail) {
+			const unsubscribeUrl = baseUrl ? `${baseUrl}/unsubscribe?id=${encodeURIComponent(contact.id)}` : '#';
+			const { subject, html, text } = buildReflectionEmailContent(ayah, unsubscribeUrl, contact.name, true);
+			ops.push(
+				sendEmail({
+					to: contact.email,
+					subject,
+					html,
+					text,
+					attachments: ayah.audioUrl
+						? [{ filename: `surah-${ayah.surahNumber}-ayah-${ayah.ayahNumber}.mp3`, path: ayah.audioUrl }]
+						: undefined
+				})
+			);
+		}
+		if (doWa) {
+			const waText = buildWhatsAppText(ayah);
+			const attachments = ayah.audioUrl ? [{ type: 'audio', url: ayah.audioUrl }] : undefined;
+			ops.push(sendWhatsApp({ toE164: contact.phone, text: waText, attachments }));
+		}
+
+		if (ops.length === 0) {
+			return json(200, { ok: true, sent: 0, message: 'No eligible channels for this contact' });
+		}
+		const settled = await Promise.allSettled(ops);
+		const ok = settled.every((r) => r.status === 'fulfilled');
+		return json(200, { ok, sent: ok ? ops.length : 0 });
 	} catch (err) {
+		if (err && err.code === 'BadRequest') {
+			return json(400, { ok: false, error: err.message });
+		}
 		console.error(err);
 		return json(500, { ok: false, error: String(err) });
 	}

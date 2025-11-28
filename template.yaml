@@ -11,9 +11,13 @@ Globals:
       Variables:
         CONTACTS_TABLE_NAME: !Ref ContactsTable
         AYAHS_TABLE_NAME: !Ref AyahsTable
+        WHATSAPP_SESSION_TABLE_NAME: !Ref WhatsAppSessionTable
         GMAIL_SECRET_ID: !Ref GmailSecretId
         MAIL_FROM: !Ref MailFrom
         HTTP_API_URL: !Ref HttpApiUrl
+        QURAN_API_CLIENT_ID: !Ref QuranApiClientId
+        QURAN_API_CLIENT_SECRET: !Ref QuranApiClientSecret
+        QURAN_API_OAUTH_URL: !Ref QuranApiOauthUrl
   HttpApi:
     CorsConfiguration:
       AllowOrigins:
@@ -39,6 +43,18 @@ Parameters:
     Type: String
     Default: ""
     Description: Public base URL for the HTTP API (e.g., https://{apiId}.execute-api.{region}.amazonaws.com/v1). Leave empty to disable unsubscribe links until known.
+  QuranApiClientId:
+    Type: String
+    Default: d2e8cba4-d523-4234-9abb-cf8a4b3367e4
+    Description: Quran API Client ID (Production)
+  QuranApiClientSecret:
+    Type: String
+    Default: ~1drzRelzeB1aEfBt3MiddbShY
+    Description: Quran API Client Secret (Production)
+  QuranApiOauthUrl:
+    Type: String
+    Default: https://oauth2.quran.foundation
+    Description: Quran API OAuth URL (Production)
 
 Resources:
   ContactsTable:
@@ -53,6 +69,8 @@ Resources:
           AttributeType: S
         - AttributeName: email
           AttributeType: S
+        - AttributeName: phone
+          AttributeType: S
       KeySchema:
         - AttributeName: id
           KeyType: HASH
@@ -63,6 +81,12 @@ Resources:
               KeyType: HASH
           Projection:
             ProjectionType: ALL
+        - IndexName: PhoneIndex
+          KeySchema:
+            - AttributeName: phone
+              KeyType: HASH
+          Projection:
+            ProjectionType: ALL
 
   AyahsTable:
     Type: AWS::DynamoDB::Table
@@ -70,6 +94,20 @@ Resources:
     UpdateReplacePolicy: Retain
     Properties:
       TableName: Ayahs
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: id
+          AttributeType: S
+      KeySchema:
+        - AttributeName: id
+          KeyType: HASH
+
+  WhatsAppSessionTable:
+    Type: AWS::DynamoDB::Table
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      TableName: WhatsAppSessions
       BillingMode: PAY_PER_REQUEST
       AttributeDefinitions:
         - AttributeName: id
@@ -98,6 +136,8 @@ Resources:
             TableName: !Ref ContactsTable
         - DynamoDBCrudPolicy:
             TableName: !Ref AyahsTable
+        - DynamoDBCrudPolicy:
+            TableName: !Ref WhatsAppSessionTable
         - Statement:
             - Effect: Allow
               Action:
@@ -121,6 +161,8 @@ Resources:
             TableName: !Ref ContactsTable
         - DynamoDBCrudPolicy:
             TableName: !Ref AyahsTable
+        - DynamoDBCrudPolicy:
+            TableName: !Ref WhatsAppSessionTable
         - Statement:
             - Effect: Allow
               Action:
@@ -144,6 +186,8 @@ Resources:
             TableName: !Ref ContactsTable
         - DynamoDBCrudPolicy:
             TableName: !Ref AyahsTable
+        - DynamoDBCrudPolicy:
+            TableName: !Ref WhatsAppSessionTable
         - Statement:
             - Effect: Allow
               Action:
@@ -182,6 +226,21 @@ Resources:
         - DynamoDBCrudPolicy:
             TableName: !Ref ContactsTable
 
+  UpdateContactFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: .
+      Handler: src/handlers/updateContact.handler
+      Events:
+        Api:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /contacts/{id}
+            Method: PUT
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref ContactsTable
   ListContactsFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -219,6 +278,40 @@ Resources:
                 - secretsmanager:GetSecretValue
               Resource: !Sub arn:${AWS::Partition}:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:${GmailSecretId}*
 
+  SendDirectWhatsappFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: .
+      Handler: src/handlers/sendDirectWhatsapp.handler
+      Events:
+        Api:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /send/direct-whatsapp
+            Method: POST
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref AyahsTable
+        - DynamoDBCrudPolicy:
+            TableName: !Ref WhatsAppSessionTable
+
+  WhatsAppQrFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: .
+      Handler: src/handlers/whatsappQr.handler
+      Events:
+        Api:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /whatsapp/qr
+            Method: GET
+      Policies:
+        - DynamoDBReadPolicy:
+            TableName: !Ref WhatsAppSessionTable
+
   UnsubscribeFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -242,3 +335,5 @@ Outputs:
     Value: !Ref ContactsTable
   AyahsTableName:
     Value: !Ref AyahsTable
+  WhatsAppSessionTableName:
+    Value: !Ref WhatsAppSessionTable

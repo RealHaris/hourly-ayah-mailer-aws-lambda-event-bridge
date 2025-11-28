@@ -428,7 +428,33 @@ function buildReflectionEmailContent(ayah, unsubscribeUrl, recipientName, showUn
 
             </div>
 
-            
+            ${ayah.textUrdu ? `
+            <!-- Urdu Translation -->
+            <div class="translation-box">
+                <span class="label">Urdu Translation:</span>
+                <p class="verse-text">
+                    ${ayah.textUrdu}
+                </p>
+            </div>` : ``}
+
+            ${ayah.tafseerText ? `
+            <!-- Tafsir -->
+            <div class="translation-box">
+                <span class="label">Tafsir:</span>
+                <p class="verse-text">
+                    ${ayah.tafseerText}
+                </p>
+            </div>` : ``}
+
+            ${ayah.audioUrl ? `
+            <!-- Audio Link -->
+            <div class="translation-box">
+                <span class="label">Audio Recitation:</span>
+                <p class="verse-text">
+                    <a href="${ayah.audioUrl}" target="_blank" rel="noopener noreferrer">${ayah.audioUrl}</a>
+                </p>
+                <p class="source">An audio file is attached as well, if supported by your email client.</p>
+            </div>` : ``}
 
             <div class="separator-text">
 
@@ -596,15 +622,16 @@ async function getTransporter() {
     return cachedTransporter;
 }
 
-async function sendEmail({ to, subject, html, text }) {
+async function sendEmail({ to, subject, html, text, attachments }) {
     const transporter = await getTransporter();
     const from = process.env.MAIL_FROM || (await getGmailCredentials()).username;
-    return transporter.sendMail({
+	return transporter.sendMail({
         from,
         to,
         subject,
         text,
-        html
+		html,
+		attachments: Array.isArray(attachments) ? attachments : undefined
     });
 }
 

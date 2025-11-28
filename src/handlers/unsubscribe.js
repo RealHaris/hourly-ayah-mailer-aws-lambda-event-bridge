@@ -1,6 +1,7 @@
 'use strict';
 
 const { getContactById, deleteContact } = require('../lib/dynamo');
+const { validateUnsubscribeQuery } = require('../lib/validation');
 
 function html(body) {
   return {
@@ -20,7 +21,12 @@ function sanitize(text) {
 exports.handler = async (event) => {
   try {
     const qs = (event && event.queryStringParameters) || {};
-    const id = typeof qs.id === 'string' ? qs.id.trim() : '';
+    let id = '';
+    try {
+      id = validateUnsubscribeQuery(qs).id;
+    } catch {
+      id = '';
+    }
 
     if (!id) {
       return html(
