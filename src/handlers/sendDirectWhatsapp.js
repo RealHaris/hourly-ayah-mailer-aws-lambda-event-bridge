@@ -5,18 +5,8 @@ const { getRandomAyah } = require('../lib/quran');
 const { putAyah } = require('../lib/dynamo');
 const { sendWhatsApp } = require('../lib/whatsapp');
 const { validateSendDirectWhatsapp } = require('../lib/validation');
-
-function json(statusCode, body) {
-  return {
-    statusCode,
-    headers: {
-      'Content-Type': 'application/json',
-      'Access-Control-Allow-Origin': '*',
-      'Access-Control-Allow-Methods': '*'
-    },
-    body: JSON.stringify(body)
-  };
-}
+const { requireAuth } = require('../lib/auth');
+const http = require('../lib/http');
 
 function buildWhatsAppText(ayah) {
   const parts = [];
@@ -33,6 +23,9 @@ function buildWhatsAppText(ayah) {
 
 exports.handler = async (event) => {
   try {
+    const gate = requireAuth(event);
+    if (gate && typeof gate.statusCode === 'number') return gate;
+
     const parsed = (() => {
       try { return event && event.body ? JSON.parse(event.body) : {}; } catch { return {}; }
     })();
@@ -50,13 +43,13 @@ exports.handler = async (event) => {
     const text = buildWhatsAppText(ayah);
     const attachments = ayah.audioUrl ? [{ type: 'audio', url: ayah.audioUrl }] : undefined;
     await sendWhatsApp({ toE164: normalized, text, attachments });
-    return json(200, { ok: true, sent: 1 });
+    return http.ok('Send completed', { sent: 1 });
   } catch (err) {
     if (err && err.code === 'BadRequest') {
-      return json(400, { ok: false, error: err.message });
+      return http.badRequest(err.message);
     }
     console.error(err);
-    return json(500, { ok: false, error: String(err) });
+    return http.error('Internal error');
   }
 };
 

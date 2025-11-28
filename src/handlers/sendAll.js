@@ -5,18 +5,8 @@ const { getRandomAyah } = require('../lib/quran');
 const { putAyah, listContacts } = require('../lib/dynamo');
 const { buildReflectionEmailContent, sendEmail } = require('../lib/email');
 const { sendWhatsApp } = require('../lib/whatsapp');
-
-function json(statusCode, body) {
-	return {
-		statusCode,
-		headers: {
-			'Content-Type': 'application/json',
-			'Access-Control-Allow-Origin': '*',
-			'Access-Control-Allow-Methods': '*'
-		},
-		body: JSON.stringify(body)
-	};
-}
+const { requireAuth } = require('../lib/auth');
+const http = require('../lib/http');
 
 function getBaseUrl(event) {
 	try {
@@ -48,6 +38,9 @@ function buildWhatsAppText(ayah) {
 
 exports.handler = async (event) => {
 	try {
+		const gate = requireAuth(event);
+		if (gate && typeof gate.statusCode === 'number') return gate;
+
 		const ayah = await getRandomAyah();
 		const record = {
 			id: randomUUID(),
@@ -59,9 +52,7 @@ exports.handler = async (event) => {
 		const contacts = await listContacts();
 		const valid = contacts.filter((c) => c && c.id && (c.email || c.phone));
 
-		if (valid.length === 0) {
-			return json(200, { ok: true, message: 'No contacts found; nothing to send.' });
-		}
+		if (valid.length === 0) return http.ok('No contacts found; nothing to send.');
 
 		const baseUrl = getBaseUrl(event) || process.env.HTTP_API_URL || '';
 		const batchSize = 5;
@@ -113,10 +104,10 @@ exports.handler = async (event) => {
 		const ok = results.filter((r) => r.ok).length;
 		const failed = results.length - ok;
 
-		return json(200, { ok: true, sent: ok, failed, details: results });
+		return http.ok('Bulk send completed', { sent: ok, failed, details: results });
 	} catch (err) {
 		console.error(err);
-		return json(500, { ok: false, error: String(err) });
+		return http.error('Internal error');
 	}
 };
 

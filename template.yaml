@@ -12,12 +12,16 @@ Globals:
         CONTACTS_TABLE_NAME: !Ref ContactsTable
         AYAHS_TABLE_NAME: !Ref AyahsTable
         WHATSAPP_SESSION_TABLE_NAME: !Ref WhatsAppSessionTable
+        USERS_TABLE_NAME: !Ref UsersTable
         GMAIL_SECRET_ID: !Ref GmailSecretId
         MAIL_FROM: !Ref MailFrom
         HTTP_API_URL: !Ref HttpApiUrl
         QURAN_API_CLIENT_ID: !Ref QuranApiClientId
         QURAN_API_CLIENT_SECRET: !Ref QuranApiClientSecret
         QURAN_API_OAUTH_URL: !Ref QuranApiOauthUrl
+        JWT_ACCESS_SECRET: !Ref JwtAccessSecret
+        JWT_REFRESH_SECRET: !Ref JwtRefreshSecret
+        OTP_TTL_MINUTES: !Ref OtpTtlMinutes
   HttpApi:
     CorsConfiguration:
       AllowOrigins:
@@ -25,6 +29,7 @@ Globals:
       AllowMethods:
         - GET
         - POST
+        - PUT
         - DELETE
         - OPTIONS
       AllowHeaders:
@@ -55,8 +60,42 @@ Parameters:
     Type: String
     Default: https://oauth2.quran.foundation
     Description: Quran API OAuth URL (Production)
+  JwtAccessSecret:
+    Type: String
+    NoEcho: true
+    Description: Secret used to sign access JWTs
+  JwtRefreshSecret:
+    Type: String
+    NoEcho: true
+    Description: Secret used to sign refresh JWTs
+  OtpTtlMinutes:
+    Type: Number
+    Default: 10
+    Description: Minutes until OTP expires
 
 Resources:
+  UsersTable:
+    Type: AWS::DynamoDB::Table
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      TableName: Users
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: id
+          AttributeType: S
+        - AttributeName: email
+          AttributeType: S
+      KeySchema:
+        - AttributeName: id
+          KeyType: HASH
+      GlobalSecondaryIndexes:
+        - IndexName: EmailIndex
+          KeySchema:
+            - AttributeName: email
+              KeyType: HASH
+          Projection:
+            ProjectionType: ALL
   ContactsTable:
     Type: AWS::DynamoDB::Table
     DeletionPolicy: Retain
@@ -278,6 +317,31 @@ Resources:
                 - secretsmanager:GetSecretValue
               Resource: !Sub arn:${AWS::Partition}:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:${GmailSecretId}*
 
+  AddContactWithSendFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: .
+      Handler: src/handlers/addContactWithSend.handler
+      Events:
+        Api:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /addContact-with-send
+            Method: POST
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref ContactsTable
+        - DynamoDBCrudPolicy:
+            TableName: !Ref AyahsTable
+        - DynamoDBCrudPolicy:
+            TableName: !Ref WhatsAppSessionTable
+        - Statement:
+            - Effect: Allow
+              Action:
+                - secretsmanager:GetSecretValue
+              Resource: !Sub arn:${AWS::Partition}:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:${GmailSecretId}*
+
   SendDirectWhatsappFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -327,6 +391,91 @@ Resources:
       Policies:
         - DynamoDBCrudPolicy:
             TableName: !Ref ContactsTable
+
+  RegisterFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: .
+      Handler: src/handlers/register.handler
+      Events:
+        Api:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /register
+            Method: POST
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref UsersTable
+
+  LoginFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: .
+      Handler: src/handlers/login.handler
+      Events:
+        Api:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /login
+            Method: POST
+      Policies:
+        - DynamoDBReadPolicy:
+            TableName: !Ref UsersTable
+
+  RefreshTokenFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: .
+      Handler: src/handlers/refreshToken.handler
+      Events:
+        Api:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /refresh-token
+            Method: POST
+      Policies:
+        - DynamoDBReadPolicy:
+            TableName: !Ref UsersTable
+
+  ForgotPasswordFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: .
+      Handler: src/handlers/forgotPassword.handler
+      Events:
+        Api:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /forgot-password
+            Method: POST
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref UsersTable
+        - Statement:
+            - Effect: Allow
+              Action:
+                - secretsmanager:GetSecretValue
+              Resource: !Sub arn:${AWS::Partition}:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:${GmailSecretId}*
+
+  VerifyOtpResetPasswordFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: .
+      Handler: src/handlers/verifyOtpResetPassword.handler
+      Events:
+        Api:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /verify-otp-reset-password
+            Method: POST
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref UsersTable
 Outputs:
   HttpApiUrl:
     Description: Base URL for HTTP API
@@ -337,3 +486,5 @@ Outputs:
     Value: !Ref AyahsTable
   WhatsAppSessionTableName:
     Value: !Ref WhatsAppSessionTable
+  UsersTableName:
+    Value: !Ref UsersTable

@@ -1,25 +1,13 @@
 'use strict';
 
 const { randomUUID } = require('crypto');
+const http = require('../lib/http');
+const { addContact } = require('../lib/dynamo');
+const { validateAddContact } = require('../lib/validation');
 const { getRandomAyah } = require('../lib/quran');
-const { putAyah, getContactById } = require('../lib/dynamo');
+const { putAyah } = require('../lib/dynamo');
 const { sendEmail, buildReflectionEmailContent } = require('../lib/email');
 const { sendWhatsApp } = require('../lib/whatsapp');
-const { validateSendContact } = require('../lib/validation');
-const { requireAuth } = require('../lib/auth');
-const http = require('../lib/http');
-
-function json(statusCode, body) {
-	return {
-		statusCode,
-		headers: {
-			'Content-Type': 'application/json',
-			'Access-Control-Allow-Origin': '*',
-			'Access-Control-Allow-Methods': '*'
-		},
-		body: JSON.stringify(body)
-	};
-}
 
 function getBaseUrl(event) {
 	try {
@@ -41,26 +29,37 @@ function buildWhatsAppText(ayah) {
 	if (ayah.textArabic) lines.push(ayah.textArabic);
 	if (ayah.textEnglish) lines.push('', ayah.textEnglish);
 	if (ayah.textUrdu) lines.push('', ayah.textUrdu);
-	if (ayah.tafseerText) lines.push('', `Tafsir:\\n${ayah.tafseerText}`);
+	if (ayah.tafseerText) lines.push('', `Tafsir:\n${ayah.tafseerText}`);
 	lines.push(
 		'',
-		`Surah ${ayah.surahNameEnglish} (${ayah.surahNumber}:${ayah.ayahNumber})${ayah.audioUrl ? `\\nAudio: ${ayah.audioUrl}` : ''}`
+		`Surah ${ayah.surahNameEnglish} (${ayah.surahNumber}:${ayah.ayahNumber})${ayah.audioUrl ? `\nAudio: ${ayah.audioUrl}` : ''}`
 	);
-	return lines.join('\\n');
+	return lines.join('\n');
 }
 
 exports.handler = async (event) => {
 	try {
-		const gate = requireAuth(event);
-		if (gate && typeof gate.statusCode === 'number') return gate;
+		const parsed = (() => {
+			try {
+				return event && event.body ? JSON.parse(event.body) : {};
+			} catch {
+				return {};
+			}
+		})();
+		const { email, name, phone, send_email, send_whatsapp } = validateAddContact(parsed);
 
-		const parsed = (() => { try { return event && event.body ? JSON.parse(event.body) : {}; } catch { return {}; } })();
-		const { id } = validateSendContact(parsed);
-		if (!id) return http.badRequest('id is required');
-		const contact = await getContactById(id);
-		if (!contact) {
-			return http.notFound('Contact not found');
+		let created;
+		try {
+			created = await addContact(email, name, phone, send_email, send_whatsapp);
+		} catch (err) {
+			const msg = String(err);
+			if (msg.includes('Contact already exists') || err.code === 'ContactExists') {
+				return http.conflict('Contact already exists');
+			}
+			throw err;
 		}
+
+		// Immediately send to the newly created contact
 		const ayah = await getRandomAyah();
 		const record = {
 			id: randomUUID(),
@@ -71,15 +70,15 @@ exports.handler = async (event) => {
 
 		const baseUrl = getBaseUrl(event) || process.env.HTTP_API_URL || '';
 		const ops = [];
-		const doEmail = contact.send_email !== false && !!contact.email;
-		const doWa = contact.send_whatsapp === true && !!contact.phone;
+		const doEmail = created.send_email !== false && !!created.email;
+		const doWa = created.send_whatsapp === true && !!created.phone;
 
 		if (doEmail) {
-			const unsubscribeUrl = baseUrl ? `${baseUrl}/unsubscribe?id=${encodeURIComponent(contact.id)}` : '#';
-			const { subject, html, text } = buildReflectionEmailContent(ayah, unsubscribeUrl, contact.name, true);
+			const unsubscribeUrl = baseUrl ? `${baseUrl}/unsubscribe?id=${encodeURIComponent(created.id)}` : '#';
+			const { subject, html, text } = buildReflectionEmailContent(ayah, unsubscribeUrl, created.name, true);
 			ops.push(
 				sendEmail({
-					to: contact.email,
+					to: created.email,
 					subject,
 					html,
 					text,
@@ -92,13 +91,20 @@ exports.handler = async (event) => {
 		if (doWa) {
 			const waText = buildWhatsAppText(ayah);
 			const attachments = ayah.audioUrl ? [{ type: 'audio', url: ayah.audioUrl }] : undefined;
-			ops.push(sendWhatsApp({ toE164: contact.phone, text: waText, attachments }));
+			ops.push(sendWhatsApp({ toE164: created.phone, text: waText, attachments }));
 		}
 
-		if (ops.length === 0) return http.ok('No eligible channels for this contact', { sent: 0 });
+		if (ops.length === 0) {
+			return http.ok('Contact added; no eligible channels to send', { id: created.id });
+		}
 		const settled = await Promise.allSettled(ops);
 		const ok = settled.every((r) => r.status === 'fulfilled');
-		return http.ok('Send completed', { sent: ok ? ops.length : 0 });
+		return ok
+			? http.created('Contact added and message sent', { id: created.id })
+			: http.ok('Contact added; some sends failed', {
+					id: created.id,
+					details: settled.map((r) => ({ ok: r.status === 'fulfilled', error: r.status === 'rejected' ? String(r.reason) : undefined }))
+				});
 	} catch (err) {
 		if (err && err.code === 'BadRequest') {
 			return http.badRequest(err.message);

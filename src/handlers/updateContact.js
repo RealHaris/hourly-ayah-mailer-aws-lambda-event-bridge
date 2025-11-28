@@ -4,24 +4,17 @@ const { getContactById, getContactByEmail, getContactByPhone } = require('../lib
 const { DynamoDBClient } = require('@aws-sdk/client-dynamodb');
 const { DynamoDBDocumentClient, UpdateCommand } = require('@aws-sdk/lib-dynamodb');
 const { validateUpdateContact } = require('../lib/validation');
+const { requireAuth } = require('../lib/auth');
+const http = require('../lib/http');
 
 const ddb = DynamoDBDocumentClient.from(new DynamoDBClient({}));
 const CONTACTS_TABLE_NAME = process.env.CONTACTS_TABLE_NAME;
 
-function json(statusCode, body) {
-  return {
-    statusCode,
-    headers: {
-      'Content-Type': 'application/json',
-      'Access-Control-Allow-Origin': '*',
-      'Access-Control-Allow-Methods': '*'
-    },
-    body: JSON.stringify(body)
-  };
-}
-
 exports.handler = async (event) => {
   try {
+    const gate = requireAuth(event);
+    if (gate && typeof gate.statusCode === 'number') return gate;
+
     const parsed = (() => {
       try {
         return event && event.body ? JSON.parse(event.body) : {};
@@ -30,12 +23,10 @@ exports.handler = async (event) => {
       }
     })();
     const { id, email, name, phone, send_email, send_whatsapp } = validateUpdateContact(event?.pathParameters, parsed);
-    if (!id) {
-      return json(400, { ok: false, error: 'id is required' });
-    }
+    if (!id) return http.badRequest('id is required');
     const existing = await getContactById(id);
     if (!existing) {
-      return json(404, { ok: false, error: 'Contact not found' });
+      return http.notFound('Contact not found');
     }
     const newEmail = email;
     const newPhone = phone || undefined;
@@ -44,13 +35,13 @@ exports.handler = async (event) => {
     if (newEmail !== undefined && existing.email !== newEmail) {
       const byEmail = await getContactByEmail(newEmail);
       if (byEmail && byEmail.id !== id) {
-        return json(409, { ok: false, error: 'Contact already exists (email)' });
+        return http.conflict('Contact already exists (email)');
       }
     }
     if (newPhone !== undefined && newPhone !== '' && existing.phone !== newPhone) {
       const byPhone = await getContactByPhone(newPhone);
       if (byPhone && byPhone.id !== id) {
-        return json(409, { ok: false, error: 'Contact already exists (phone)' });
+        return http.conflict('Contact already exists (phone)');
       }
     }
 
@@ -74,7 +65,7 @@ exports.handler = async (event) => {
 
     if (sets.length === 1) {
       // Only updatedAt would be set; nothing to update
-      return json(200, { ok: true, id });
+      return http.ok('No changes', { id });
     }
 
     await ddb.send(new UpdateCommand({
@@ -85,13 +76,13 @@ exports.handler = async (event) => {
       ExpressionAttributeValues: values
     }));
 
-    return json(200, { ok: true, id });
+    return http.ok('Contact updated', { id });
   } catch (err) {
     if (err && err.code === 'BadRequest') {
-      return json(400, { ok: false, error: err.message });
+      return http.badRequest(err.message);
     }
     console.error(err);
-    return json(500, { ok: false, error: String(err) });
+    return http.error('Internal error');
   }
 };
 

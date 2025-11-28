@@ -1,26 +1,19 @@
 'use strict';
 
 const { listContacts } = require('../lib/dynamo');
+const { requireAuth } = require('../lib/auth');
+const http = require('../lib/http');
 
-function json(statusCode, body) {
-	return {
-		statusCode,
-		headers: {
-			'Content-Type': 'application/json',
-			'Access-Control-Allow-Origin': '*',
-			'Access-Control-Allow-Methods': '*'
-		},
-		body: JSON.stringify(body)
-	};
-}
-
-exports.handler = async () => {
+exports.handler = async (event) => {
 	try {
+		const gate = requireAuth(event);
+		if (gate && typeof gate.statusCode === 'number') return gate;
+
 		const items = await listContacts();
-		return json(200, { ok: true, items });
+		return http.ok('Contacts list', items);
 	} catch (err) {
 		console.error(err);
-		return json(500, { ok: false, error: String(err) });
+		return http.error('Internal error');
 	}
 };
 
