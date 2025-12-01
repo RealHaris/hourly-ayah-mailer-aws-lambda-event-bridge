@@ -1,0 +1,14 @@
+# Exclude heavy Chromium/Puppeteer binaries from deployment package
+# (Chromium is provided via Lambda Layer instead)
+node_modules/puppeteer/
+node_modules/chromium/
+node_modules/.local-chromium/
+node_modules/@sparticuz/chromium/
+
+# Dev/test files
+*.md
+docs/
+events/
+test-local.js
+.git/
+.gitignore
