@@ -24,4 +24,6 @@ Thumbs.db
 env.json
 
 LOCAL_TESTING.md
+*docs/*.json
+*docs/issues.md
 
