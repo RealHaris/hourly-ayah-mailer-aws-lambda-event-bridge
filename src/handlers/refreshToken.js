@@ -25,7 +25,7 @@ exports.handler = async (event) => {
 
 		let claims;
 		try {
-			claims = verifyRefreshToken(value.refreshToken);
+			claims = await verifyRefreshToken(value.refreshToken);
 		} catch {
 			return http.unauthorized('Invalid or expired refresh token');
 		}
@@ -34,8 +34,8 @@ exports.handler = async (event) => {
 		const user = await getUserById(claims.sub);
 		if (!user) return http.unauthorized('Invalid token');
 
-		const accessToken = generateAccessToken(user);
-		const refreshToken = generateRefreshToken(user); // rotate
+		const accessToken = await generateAccessToken(user);
+		const refreshToken = await generateRefreshToken(user); // rotate
 		return http.ok('Token refreshed', { accessToken, refreshToken });
 	} catch (err) {
 		console.error(err);

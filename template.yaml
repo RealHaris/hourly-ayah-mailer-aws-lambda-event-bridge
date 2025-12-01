@@ -14,13 +14,10 @@ Globals:
         WHATSAPP_SESSION_TABLE_NAME: !Ref WhatsAppSessionTable
         USERS_TABLE_NAME: !Ref UsersTable
         GMAIL_SECRET_ID: !Ref GmailSecretId
+        APP_SECRETS_ID: !Ref AppSecretsId
         MAIL_FROM: !Ref MailFrom
         HTTP_API_URL: !Ref HttpApiUrl
-        QURAN_API_CLIENT_ID: !Ref QuranApiClientId
-        QURAN_API_CLIENT_SECRET: !Ref QuranApiClientSecret
         QURAN_API_OAUTH_URL: !Ref QuranApiOauthUrl
-        JWT_ACCESS_SECRET: !Ref JwtAccessSecret
-        JWT_REFRESH_SECRET: !Ref JwtRefreshSecret
         OTP_TTL_MINUTES: !Ref OtpTtlMinutes
   HttpApi:
     CorsConfiguration:
@@ -40,6 +37,10 @@ Parameters:
     Type: String
     Default: gmail/ayah-mailer
     Description: Secrets Manager secret name or ARN containing Gmail username and app_password fields.
+  AppSecretsId:
+    Type: String
+    Default: ayah-mailer/app-secrets
+    Description: Secrets Manager secret name containing QURAN_API_CLIENT_ID, QURAN_API_CLIENT_SECRET, JWT_ACCESS_SECRET, JWT_REFRESH_SECRET.
   MailFrom:
     Type: String
     Default: your@gmail.com
@@ -48,26 +49,10 @@ Parameters:
     Type: String
     Default: ""
     Description: Public base URL for the HTTP API (e.g., https://{apiId}.execute-api.{region}.amazonaws.com/v1). Leave empty to disable unsubscribe links until known.
-  QuranApiClientId:
-    Type: String
-    Default: d2e8cba4-d523-4234-9abb-cf8a4b3367e4
-    Description: Quran API Client ID (Production)
-  QuranApiClientSecret:
-    Type: String
-    Default: ~1drzRelzeB1aEfBt3MiddbShY
-    Description: Quran API Client Secret (Production)
   QuranApiOauthUrl:
     Type: String
     Default: https://oauth2.quran.foundation
     Description: Quran API OAuth URL (Production)
-  JwtAccessSecret:
-    Type: String
-    NoEcho: true
-    Description: Secret used to sign access JWTs
-  JwtRefreshSecret:
-    Type: String
-    NoEcho: true
-    Description: Secret used to sign refresh JWTs
   OtpTtlMinutes:
     Type: Number
     Default: 10
@@ -79,7 +64,6 @@ Resources:
     DeletionPolicy: Retain
     UpdateReplacePolicy: Retain
     Properties:
-      TableName: Users
       BillingMode: PAY_PER_REQUEST
       AttributeDefinitions:
         - AttributeName: id
@@ -101,7 +85,6 @@ Resources:
     DeletionPolicy: Retain
     UpdateReplacePolicy: Retain
     Properties:
-      TableName: Contacts
       BillingMode: PAY_PER_REQUEST
       AttributeDefinitions:
         - AttributeName: id
@@ -132,7 +115,6 @@ Resources:
     DeletionPolicy: Retain
     UpdateReplacePolicy: Retain
     Properties:
-      TableName: Ayahs
       BillingMode: PAY_PER_REQUEST
       AttributeDefinitions:
         - AttributeName: id
@@ -146,7 +128,6 @@ Resources:
     DeletionPolicy: Retain
     UpdateReplacePolicy: Retain
     Properties:
-      TableName: WhatsAppSessions
       BillingMode: PAY_PER_REQUEST
       AttributeDefinitions:
         - AttributeName: id
@@ -181,7 +162,9 @@ Resources:
             - Effect: Allow
               Action:
                 - secretsmanager:GetSecretValue
-              Resource: !Sub arn:${AWS::Partition}:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:${GmailSecretId}*
+              Resource:
+                - !Sub arn:${AWS::Partition}:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:${GmailSecretId}*
+                - !Sub arn:${AWS::Partition}:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:${AppSecretsId}*
 
   SendAllFunction:
     Type: AWS::Serverless::Function
@@ -206,7 +189,9 @@ Resources:
             - Effect: Allow
               Action:
                 - secretsmanager:GetSecretValue
-              Resource: !Sub arn:${AWS::Partition}:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:${GmailSecretId}*
+              Resource:
+                - !Sub arn:${AWS::Partition}:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:${GmailSecretId}*
+                - !Sub arn:${AWS::Partition}:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:${AppSecretsId}*
 
   SendContactFunction:
     Type: AWS::Serverless::Function
@@ -231,7 +216,9 @@ Resources:
             - Effect: Allow
               Action:
                 - secretsmanager:GetSecretValue
-              Resource: !Sub arn:${AWS::Partition}:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:${GmailSecretId}*
+              Resource:
+                - !Sub arn:${AWS::Partition}:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:${GmailSecretId}*
+                - !Sub arn:${AWS::Partition}:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:${AppSecretsId}*
 
   AddContactFunction:
     Type: AWS::Serverless::Function
@@ -315,7 +302,9 @@ Resources:
             - Effect: Allow
               Action:
                 - secretsmanager:GetSecretValue
-              Resource: !Sub arn:${AWS::Partition}:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:${GmailSecretId}*
+              Resource:
+                - !Sub arn:${AWS::Partition}:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:${GmailSecretId}*
+                - !Sub arn:${AWS::Partition}:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:${AppSecretsId}*
 
   AddContactWithSendFunction:
     Type: AWS::Serverless::Function
@@ -340,7 +329,9 @@ Resources:
             - Effect: Allow
               Action:
                 - secretsmanager:GetSecretValue
-              Resource: !Sub arn:${AWS::Partition}:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:${GmailSecretId}*
+              Resource:
+                - !Sub arn:${AWS::Partition}:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:${GmailSecretId}*
+                - !Sub arn:${AWS::Partition}:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:${AppSecretsId}*
 
   SendDirectWhatsappFunction:
     Type: AWS::Serverless::Function
@@ -359,6 +350,12 @@ Resources:
             TableName: !Ref AyahsTable
         - DynamoDBCrudPolicy:
             TableName: !Ref WhatsAppSessionTable
+        - Statement:
+            - Effect: Allow
+              Action:
+                - secretsmanager:GetSecretValue
+              Resource:
+                - !Sub arn:${AWS::Partition}:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:${AppSecretsId}*
 
   WhatsAppQrFunction:
     Type: AWS::Serverless::Function
@@ -407,6 +404,12 @@ Resources:
       Policies:
         - DynamoDBCrudPolicy:
             TableName: !Ref UsersTable
+        - Statement:
+            - Effect: Allow
+              Action:
+                - secretsmanager:GetSecretValue
+              Resource:
+                - !Sub arn:${AWS::Partition}:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:${AppSecretsId}*
 
   LoginFunction:
     Type: AWS::Serverless::Function
@@ -423,6 +426,12 @@ Resources:
       Policies:
         - DynamoDBReadPolicy:
             TableName: !Ref UsersTable
+        - Statement:
+            - Effect: Allow
+              Action:
+                - secretsmanager:GetSecretValue
+              Resource:
+                - !Sub arn:${AWS::Partition}:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:${AppSecretsId}*
 
   RefreshTokenFunction:
     Type: AWS::Serverless::Function
@@ -439,6 +448,12 @@ Resources:
       Policies:
         - DynamoDBReadPolicy:
             TableName: !Ref UsersTable
+        - Statement:
+            - Effect: Allow
+              Action:
+                - secretsmanager:GetSecretValue
+              Resource:
+                - !Sub arn:${AWS::Partition}:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:${AppSecretsId}*
 
   ForgotPasswordFunction:
     Type: AWS::Serverless::Function
@@ -459,7 +474,9 @@ Resources:
             - Effect: Allow
               Action:
                 - secretsmanager:GetSecretValue
-              Resource: !Sub arn:${AWS::Partition}:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:${GmailSecretId}*
+              Resource:
+                - !Sub arn:${AWS::Partition}:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:${GmailSecretId}*
+                - !Sub arn:${AWS::Partition}:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:${AppSecretsId}*
 
   VerifyOtpResetPasswordFunction:
     Type: AWS::Serverless::Function
@@ -476,6 +493,12 @@ Resources:
       Policies:
         - DynamoDBCrudPolicy:
             TableName: !Ref UsersTable
+        - Statement:
+            - Effect: Allow
+              Action:
+                - secretsmanager:GetSecretValue
+              Resource:
+                - !Sub arn:${AWS::Partition}:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:${AppSecretsId}*
 Outputs:
   HttpApiUrl:
     Description: Base URL for HTTP API

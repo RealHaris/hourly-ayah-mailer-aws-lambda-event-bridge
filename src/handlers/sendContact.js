@@ -51,7 +51,7 @@ function buildWhatsAppText(ayah) {
 
 exports.handler = async (event) => {
 	try {
-		const gate = requireAuth(event);
+		const gate = await requireAuth(event);
 		if (gate && typeof gate.statusCode === 'number') return gate;
 
 		const parsed = (() => { try { return event && event.body ? JSON.parse(event.body) : {}; } catch { return {}; } })();

@@ -4,21 +4,10 @@ const { randomBytes, scrypt } = require('crypto');
 const { promisify } = require('util');
 const jwt = require('jsonwebtoken');
 const http = require('./http');
+const { getJwtAccessSecret, getJwtRefreshSecret } = require('./secrets');
 
 const scryptAsync = promisify(scrypt);
 const KEYLEN = 64;
-
-function getAccessSecret() {
-	const secret = process.env.JWT_ACCESS_SECRET;
-	if (!secret) throw new Error('JWT_ACCESS_SECRET not set');
-	return secret;
-}
-
-function getRefreshSecret() {
-	const secret = process.env.JWT_REFRESH_SECRET;
-	if (!secret) throw new Error('JWT_REFRESH_SECRET not set');
-	return secret;
-}
 
 async function hashPassword(password) {
 	const salt = randomBytes(16);
@@ -33,22 +22,26 @@ async function verifyPassword(password, saltHex, hashHex) {
 	return Buffer.compare(Buffer.from(hashHex, 'hex'), Buffer.from(derived)) === 0;
 }
 
-function generateAccessToken(user) {
+async function generateAccessToken(user) {
 	const payload = { sub: user.id, email: user.email };
-	return jwt.sign(payload, getAccessSecret(), { expiresIn: '2h' });
+	const secret = await getJwtAccessSecret();
+	return jwt.sign(payload, secret, { expiresIn: '2h' });
 }
 
-function generateRefreshToken(user) {
+async function generateRefreshToken(user) {
 	const payload = { sub: user.id, email: user.email };
-	return jwt.sign(payload, getRefreshSecret(), { expiresIn: '7d' });
+	const secret = await getJwtRefreshSecret();
+	return jwt.sign(payload, secret, { expiresIn: '7d' });
 }
 
-function verifyAccessToken(token) {
-	return jwt.verify(token, getAccessSecret());
+async function verifyAccessToken(token) {
+	const secret = await getJwtAccessSecret();
+	return jwt.verify(token, secret);
 }
 
-function verifyRefreshToken(token) {
-	return jwt.verify(token, getRefreshSecret());
+async function verifyRefreshToken(token) {
+	const secret = await getJwtRefreshSecret();
+	return jwt.verify(token, secret);
 }
 
 function extractBearerToken(event) {
@@ -62,11 +55,11 @@ function extractBearerToken(event) {
 	return null;
 }
 
-function requireAuth(event) {
+async function requireAuth(event) {
 	try {
 		const token = extractBearerToken(event);
 		if (!token) return http.unauthorized('Missing bearer token');
-		const claims = verifyAccessToken(token);
+		const claims = await verifyAccessToken(token);
 		return { user: { id: claims.sub, email: claims.email }, claims };
 	} catch (err) {
 		return http.unauthorized('Invalid or expired token');
@@ -89,5 +82,3 @@ module.exports = {
 	requireAuth,
 	generateOtp
 };
-
-

@@ -1,5 +1,7 @@
 'use strict';
 
+const { getQuranApiCredentials } = require('./secrets');
+
 let QuranClient;
 let Language;
 
@@ -21,12 +23,11 @@ let cachedClient;
 async function getClient() {
 	if (cachedClient) return cachedClient;
 	const { QuranClient: QC, Language: Lang } = await getSdk();
-	const clientId = process.env.QURAN_API_CLIENT_ID || process.env.QURAN_CLIENT_ID;
-	const clientSecret = process.env.QURAN_API_CLIENT_SECRET || process.env.QURAN_CLIENT_SECRET;
+	
+	// Fetch credentials from Secrets Manager
+	const { clientId, clientSecret } = await getQuranApiCredentials();
 	const oauthUrl = process.env.QURAN_API_OAUTH_URL || 'https://prelive-oauth2.quran.foundation';
-	if (!clientId || !clientSecret) {
-		throw new Error('QURAN_API_CLIENT_ID and QURAN_API_CLIENT_SECRET must be set');
-	}
+	
 	// The SDK is expected to handle OAuth internally using provided creds
 	cachedClient = new QC({
 		clientId,

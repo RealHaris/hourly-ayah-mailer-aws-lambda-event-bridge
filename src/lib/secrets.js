@@ -1,0 +1,91 @@
+'use strict';
+
+const { SecretsManagerClient, GetSecretValueCommand } = require('@aws-sdk/client-secrets-manager');
+
+const client = new SecretsManagerClient({});
+
+// Cache for app secrets to avoid repeated calls
+let cachedAppSecrets = null;
+let cacheExpiry = 0;
+const CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
+
+/**
+ * Retrieves the app secrets from AWS Secrets Manager.
+ * Returns an object with: QURAN_API_CLIENT_ID, QURAN_API_CLIENT_SECRET, JWT_ACCESS_SECRET, JWT_REFRESH_SECRET
+ */
+async function getAppSecrets() {
+	const now = Date.now();
+	if (cachedAppSecrets && now < cacheExpiry) {
+		return cachedAppSecrets;
+	}
+
+	const secretId = process.env.APP_SECRETS_ID;
+	if (!secretId) {
+		throw new Error('APP_SECRETS_ID environment variable not set');
+	}
+
+	const command = new GetSecretValueCommand({ SecretId: secretId });
+	const response = await client.send(command);
+
+	if (!response.SecretString) {
+		throw new Error('App secrets not found or empty');
+	}
+
+	cachedAppSecrets = JSON.parse(response.SecretString);
+	cacheExpiry = now + CACHE_TTL_MS;
+
+	return cachedAppSecrets;
+}
+
+/**
+ * Get JWT Access Secret from Secrets Manager
+ */
+async function getJwtAccessSecret() {
+	const secrets = await getAppSecrets();
+	const secret = secrets.JWT_ACCESS_SECRET;
+	if (!secret) {
+		throw new Error('JWT_ACCESS_SECRET not found in app secrets');
+	}
+	return secret;
+}
+
+/**
+ * Get JWT Refresh Secret from Secrets Manager
+ */
+async function getJwtRefreshSecret() {
+	const secrets = await getAppSecrets();
+	const secret = secrets.JWT_REFRESH_SECRET;
+	if (!secret) {
+		throw new Error('JWT_REFRESH_SECRET not found in app secrets');
+	}
+	return secret;
+}
+
+/**
+ * Get Quran API credentials from Secrets Manager
+ */
+async function getQuranApiCredentials() {
+	const secrets = await getAppSecrets();
+	const clientId = secrets.QURAN_API_CLIENT_ID;
+	const clientSecret = secrets.QURAN_API_CLIENT_SECRET;
+	if (!clientId || !clientSecret) {
+		throw new Error('QURAN_API_CLIENT_ID or QURAN_API_CLIENT_SECRET not found in app secrets');
+	}
+	return { clientId, clientSecret };
+}
+
+/**
+ * Clear the secrets cache (useful for testing or forced refresh)
+ */
+function clearSecretsCache() {
+	cachedAppSecrets = null;
+	cacheExpiry = 0;
+}
+
+module.exports = {
+	getAppSecrets,
+	getJwtAccessSecret,
+	getJwtRefreshSecret,
+	getQuranApiCredentials,
+	clearSecretsCache
+};

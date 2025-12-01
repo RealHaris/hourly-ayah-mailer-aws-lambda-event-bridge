@@ -8,7 +8,7 @@ region = "ap-south-1"
 confirm_changeset = true
 capabilities = "CAPABILITY_IAM"
 disable_rollback = false
-parameter_overrides = "GmailSecretId=\"gmail/ayah-mailer\" MailFrom=\"harisxstudy@gmail.com\" QuranApiClientId=\"d2e8cba4-d523-4234-9abb-cf8a4b3367e4\" QuranApiClientSecret=\"~1drzRelzeB1aEfBt3MiddbShY\" QuranApiOauthUrl=\"https://oauth2.quran.foundation\" JwtAccessSecret=\"$ddTkS$1331X64jw\" JwtRefreshSecret=\"99N8&icuY575AO5&\" OtpTtlMinutes=\"10\""
+parameter_overrides = "GmailSecretId=\"gmail/ayah-mailer\" AppSecretsId=\"ayah-mailer/app-secrets\" MailFrom=\"harisxstudy@gmail.com\" QuranApiOauthUrl=\"https://oauth2.quran.foundation\" OtpTtlMinutes=\"10\""
 image_repositories = []
 
 [default.global.parameters]
