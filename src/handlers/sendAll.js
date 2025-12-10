@@ -4,7 +4,6 @@ const { randomUUID } = require('crypto');
 const { getRandomAyah } = require('../lib/quran');
 const { putAyah, listContacts } = require('../lib/dynamo');
 const { buildReflectionEmailContent, sendEmail } = require('../lib/email');
-const { sendWhatsApp } = require('../lib/whatsapp');
 const { requireAuth } = require('../lib/auth');
 const http = require('../lib/http');
 
@@ -23,19 +22,6 @@ function getBaseUrl(event) {
 	return '';
 }
 
-function buildWhatsAppText(ayah) {
-	const lines = [];
-	if (ayah.textArabic) lines.push(ayah.textArabic);
-	if (ayah.textEnglish) lines.push('', ayah.textEnglish);
-	if (ayah.textUrdu) lines.push('', ayah.textUrdu);
-	if (ayah.tafseerText) lines.push('', `Tafsir:\n${ayah.tafseerText}`);
-	lines.push(
-		'',
-		`Surah ${ayah.surahNameEnglish} (${ayah.surahNumber}:${ayah.ayahNumber})${ayah.audioUrl ? `\nAudio: ${ayah.audioUrl}` : ''}`
-	);
-	return lines.join('\n');
-}
-
 exports.handler = async (event) => {
 	try {
 		const gate = await requireAuth(event);
@@ -50,7 +36,7 @@ exports.handler = async (event) => {
 		await putAyah(record);
 
 		const contacts = await listContacts();
-		const valid = contacts.filter((c) => c && c.id && (c.email || c.phone));
+		const valid = contacts.filter((c) => c && c.id && c.email && c.subscribed !== false);
 
 		if (valid.length === 0) return http.ok('No contacts found; nothing to send.');
 
@@ -63,8 +49,7 @@ exports.handler = async (event) => {
 			const settled = await Promise.allSettled(
 				chunk.map(async (c) => {
 					const ops = [];
-					const doEmail = c.send_email !== false && !!c.email;
-					const doWa = c.send_whatsapp === true && !!c.phone;
+					const doEmail = c.subscribed !== false && !!c.email;
 					if (doEmail) {
 						const unsubscribeUrl = baseUrl ? `${baseUrl}/unsubscribe?id=${encodeURIComponent(c.id)}` : '#';
 						const { subject, html, text } = buildReflectionEmailContent(ayah, unsubscribeUrl, c.name, true);
@@ -79,11 +64,6 @@ exports.handler = async (event) => {
 									: undefined
 							})
 						);
-					}
-					if (doWa) {
-						const waText = buildWhatsAppText(ayah);
-						const attachments = ayah.audioUrl ? [{ type: 'audio', url: ayah.audioUrl }] : undefined;
-						ops.push(sendWhatsApp({ toE164: c.phone, text: waText, attachments }));
 					}
 					if (ops.length === 0) return null;
 					const res = await Promise.allSettled(ops);

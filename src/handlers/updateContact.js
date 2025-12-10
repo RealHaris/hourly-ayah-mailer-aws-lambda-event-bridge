@@ -1,6 +1,6 @@
 'use strict';
 
-const { getContactById, getContactByEmail, getContactByPhone } = require('../lib/dynamo');
+const { getContactById, getContactByEmail } = require('../lib/dynamo');
 const { DynamoDBClient } = require('@aws-sdk/client-dynamodb');
 const { DynamoDBDocumentClient, UpdateCommand } = require('@aws-sdk/lib-dynamodb');
 const { validateUpdateContact } = require('../lib/validation');
@@ -22,26 +22,19 @@ exports.handler = async (event) => {
         return {};
       }
     })();
-    const { id, email, name, phone, send_email, send_whatsapp } = validateUpdateContact(event?.pathParameters, parsed);
+    const { id, email, name, subscribed } = validateUpdateContact(event?.pathParameters, parsed);
     if (!id) return http.badRequest('id is required');
     const existing = await getContactById(id);
     if (!existing) {
       return http.notFound('Contact not found');
     }
     const newEmail = email;
-    const newPhone = phone || undefined;
 
     // Uniqueness checks when changing
     if (newEmail !== undefined && existing.email !== newEmail) {
       const byEmail = await getContactByEmail(newEmail);
       if (byEmail && byEmail.id !== id) {
         return http.conflict('Contact already exists (email)');
-      }
-    }
-    if (newPhone !== undefined && newPhone !== '' && existing.phone !== newPhone) {
-      const byPhone = await getContactByPhone(newPhone);
-      if (byPhone && byPhone.id !== id) {
-        return http.conflict('Contact already exists (phone)');
       }
     }
 
@@ -58,15 +51,11 @@ exports.handler = async (event) => {
     }
     if (name !== undefined) setField('name', name);
     if (newEmail !== undefined) setField('email', newEmail);
-    if (newPhone !== undefined) setField('phone', newPhone);
-    if (send_email !== undefined) setField('send_email', !!send_email);
-    if (send_whatsapp !== undefined) setField('send_whatsapp', !!send_whatsapp);
-    setField('updatedAt', new Date().toISOString());
-
-    if (sets.length === 1) {
-      // Only updatedAt would be set; nothing to update
+    if (email === undefined && name === undefined && subscribed === undefined) {
       return http.ok('No changes', { id });
     }
+    if (subscribed !== undefined) setField('subscribed', !!subscribed);
+    setField('updatedAt', new Date().toISOString());
 
     await ddb.send(new UpdateCommand({
       TableName: CONTACTS_TABLE_NAME,

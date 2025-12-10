@@ -1,6 +1,6 @@
 'use strict';
 
-const { getContactById, deleteContact } = require('../lib/dynamo');
+const { getContactById, updateContactSubscription } = require('../lib/dynamo');
 const { validateUnsubscribeQuery } = require('../lib/validation');
 
 function html(body) {
@@ -39,7 +39,7 @@ exports.handler = async (event) => {
 
     const contact = await getContactById(id);
     if (contact && contact.id) {
-      await deleteContact(id);
+      await updateContactSubscription(id, false);
     }
 
     return html(

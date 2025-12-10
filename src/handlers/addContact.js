@@ -17,13 +17,10 @@ exports.handler = async (event) => {
 				return {};
 			}
 		})();
-		const { email, name, phone, send_email, send_whatsapp } = validateAddContact(parsed);
+		const { email, name } = validateAddContact(parsed);
 		const created = await addContact(
 			email,
-			name,
-			phone,
-			send_email,
-			send_whatsapp
+			name
 		);
 		return http.created('Contact created', created);
 	} catch (err) {

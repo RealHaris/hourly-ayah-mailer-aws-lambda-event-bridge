@@ -4,7 +4,6 @@ const { randomUUID } = require('crypto');
 const { getRandomAyah } = require('../lib/quran');
 const { putAyah, getContactById } = require('../lib/dynamo');
 const { sendEmail, buildReflectionEmailContent } = require('../lib/email');
-const { sendWhatsApp } = require('../lib/whatsapp');
 const { validateSendContact } = require('../lib/validation');
 const { requireAuth } = require('../lib/auth');
 const http = require('../lib/http');
@@ -36,19 +35,6 @@ function getBaseUrl(event) {
 	return '';
 }
 
-function buildWhatsAppText(ayah) {
-	const lines = [];
-	if (ayah.textArabic) lines.push(ayah.textArabic);
-	if (ayah.textEnglish) lines.push('', ayah.textEnglish);
-	if (ayah.textUrdu) lines.push('', ayah.textUrdu);
-	if (ayah.tafseerText) lines.push('', `Tafsir:\\n${ayah.tafseerText}`);
-	lines.push(
-		'',
-		`Surah ${ayah.surahNameEnglish} (${ayah.surahNumber}:${ayah.ayahNumber})${ayah.audioUrl ? `\\nAudio: ${ayah.audioUrl}` : ''}`
-	);
-	return lines.join('\\n');
-}
-
 exports.handler = async (event) => {
 	try {
 		const gate = await requireAuth(event);
@@ -71,8 +57,7 @@ exports.handler = async (event) => {
 
 		const baseUrl = getBaseUrl(event) || process.env.HTTP_API_URL || '';
 		const ops = [];
-		const doEmail = contact.send_email !== false && !!contact.email;
-		const doWa = contact.send_whatsapp === true && !!contact.phone;
+		const doEmail = contact.subscribed !== false && !!contact.email;
 
 		if (doEmail) {
 			const unsubscribeUrl = baseUrl ? `${baseUrl}/unsubscribe?id=${encodeURIComponent(contact.id)}` : '#';
@@ -89,12 +74,6 @@ exports.handler = async (event) => {
 				})
 			);
 		}
-		if (doWa) {
-			const waText = buildWhatsAppText(ayah);
-			const attachments = ayah.audioUrl ? [{ type: 'audio', url: ayah.audioUrl }] : undefined;
-			ops.push(sendWhatsApp({ toE164: contact.phone, text: waText, attachments }));
-		}
-
 		if (ops.length === 0) return http.ok('No eligible channels for this contact', { sent: 0 });
 		const settled = await Promise.allSettled(ops);
 		const ok = settled.every((r) => r.status === 'fulfilled');

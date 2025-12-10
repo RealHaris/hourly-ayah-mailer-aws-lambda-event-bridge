@@ -7,7 +7,6 @@ const { validateAddContact } = require('../lib/validation');
 const { getRandomAyah } = require('../lib/quran');
 const { putAyah } = require('../lib/dynamo');
 const { sendEmail, buildReflectionEmailContent } = require('../lib/email');
-const { sendWhatsApp } = require('../lib/whatsapp');
 
 function getBaseUrl(event) {
 	try {
@@ -24,19 +23,6 @@ function getBaseUrl(event) {
 	return '';
 }
 
-function buildWhatsAppText(ayah) {
-	const lines = [];
-	if (ayah.textArabic) lines.push(ayah.textArabic);
-	if (ayah.textEnglish) lines.push('', ayah.textEnglish);
-	if (ayah.textUrdu) lines.push('', ayah.textUrdu);
-	if (ayah.tafseerText) lines.push('', `Tafsir:\n${ayah.tafseerText}`);
-	lines.push(
-		'',
-		`Surah ${ayah.surahNameEnglish} (${ayah.surahNumber}:${ayah.ayahNumber})${ayah.audioUrl ? `\nAudio: ${ayah.audioUrl}` : ''}`
-	);
-	return lines.join('\n');
-}
-
 exports.handler = async (event) => {
 	try {
 		const parsed = (() => {
@@ -46,11 +32,11 @@ exports.handler = async (event) => {
 				return {};
 			}
 		})();
-		const { email, name, phone, send_email, send_whatsapp } = validateAddContact(parsed);
+		const { email, name } = validateAddContact(parsed);
 
 		let created;
 		try {
-			created = await addContact(email, name, phone, send_email, send_whatsapp);
+			created = await addContact(email, name);
 		} catch (err) {
 			const msg = String(err);
 			if (msg.includes('Contact already exists') || err.code === 'ContactExists') {
@@ -70,8 +56,7 @@ exports.handler = async (event) => {
 
 		const baseUrl = getBaseUrl(event) || process.env.HTTP_API_URL || '';
 		const ops = [];
-		const doEmail = created.send_email !== false && !!created.email;
-		const doWa = created.send_whatsapp === true && !!created.phone;
+		const doEmail = created.subscribed !== false && !!created.email;
 
 		if (doEmail) {
 			const unsubscribeUrl = baseUrl ? `${baseUrl}/unsubscribe?id=${encodeURIComponent(created.id)}` : '#';
@@ -88,12 +73,6 @@ exports.handler = async (event) => {
 				})
 			);
 		}
-		if (doWa) {
-			const waText = buildWhatsAppText(ayah);
-			const attachments = ayah.audioUrl ? [{ type: 'audio', url: ayah.audioUrl }] : undefined;
-			ops.push(sendWhatsApp({ toE164: created.phone, text: waText, attachments }));
-		}
-
 		if (ops.length === 0) {
 			return http.ok('Contact added; no eligible channels to send', { id: created.id });
 		}

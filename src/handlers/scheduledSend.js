@@ -4,7 +4,6 @@ const { randomUUID } = require('crypto');
 const { getRandomAyah } = require('../lib/quran');
 const { putAyah, listContacts } = require('../lib/dynamo');
 const { sendEmail, buildReflectionEmailContent } = require('../lib/email');
-const { sendWhatsApp } = require('../lib/whatsapp');
 
 exports.handler = async () => {
 	const ayah = await getRandomAyah();
@@ -15,21 +14,8 @@ exports.handler = async () => {
 	};
 	await putAyah(record);
 
-	function buildWhatsAppText(a) {
-		const lines = [];
-		if (a.textArabic) lines.push(a.textArabic);
-		if (a.textEnglish) lines.push('', a.textEnglish);
-		if (a.textUrdu) lines.push('', a.textUrdu);
-		if (a.tafseerText) lines.push('', `Tafsir:\n${a.tafseerText}`);
-		lines.push(
-			'',
-			`Surah ${a.surahNameEnglish} (${a.surahNumber}:${a.ayahNumber})${a.audioUrl ? `\\nAudio: ${a.audioUrl}` : ''}`
-		);
-		return lines.join('\\n');
-	}
-
 	const contacts = await listContacts();
-	const valid = contacts.filter((c) => c && c.id && (c.email || c.phone));
+	const valid = contacts.filter((c) => c && c.id && c.email && c.subscribed !== false);
 
 	if (valid.length === 0) {
 		console.log('No contacts found; nothing to send.');
@@ -44,8 +30,7 @@ exports.handler = async () => {
 		// eslint-disable-next-line no-await-in-loop
 		const settled = await Promise.allSettled(chunk.map(async (c) => {
 			const ops = [];
-			const doEmail = c.send_email !== false && !!c.email;
-			const doWa = c.send_whatsapp === true && !!c.phone;
+			const doEmail = c.subscribed !== false && !!c.email;
 			if (doEmail) {
 				const unsubscribeUrl = baseUrl ? `${baseUrl}/unsubscribe?id=${encodeURIComponent(c.id)}` : '#';
 				const { subject, html, text } = buildReflectionEmailContent(ayah, unsubscribeUrl, c.name, true);
@@ -58,11 +43,6 @@ exports.handler = async () => {
 						? [{ filename: `surah-${ayah.surahNumber}-ayah-${ayah.ayahNumber}.mp3`, path: ayah.audioUrl }]
 						: undefined
 				}));
-			}
-			if (doWa) {
-				const waText = buildWhatsAppText(ayah);
-				const attachments = ayah.audioUrl ? [{ type: 'audio', url: ayah.audioUrl }] : undefined;
-				ops.push(sendWhatsApp({ toE164: c.phone, text: waText, attachments }));
 			}
 			if (ops.length === 0) return null;
 			const res = await Promise.allSettled(ops);

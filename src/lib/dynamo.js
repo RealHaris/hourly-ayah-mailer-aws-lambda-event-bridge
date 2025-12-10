@@ -14,13 +14,8 @@ const { randomUUID } = require('crypto');
 
 const CONTACTS_TABLE_NAME = process.env.CONTACTS_TABLE_NAME;
 const AYAHS_TABLE_NAME = process.env.AYAHS_TABLE_NAME;
-const WHATSAPP_SESSION_TABLE_NAME = process.env.WHATSAPP_SESSION_TABLE_NAME;
-
 if (!CONTACTS_TABLE_NAME || !AYAHS_TABLE_NAME) {
 	console.warn('Dynamo env vars not fully set: CONTACTS_TABLE_NAME and/or AYAHS_TABLE_NAME missing');
-}
-if (!WHATSAPP_SESSION_TABLE_NAME) {
-	console.warn('Dynamo env var not set: WHATSAPP_SESSION_TABLE_NAME (needed for WhatsApp session/QR)');
 }
 
 const ddb = DynamoDBDocumentClient.from(new DynamoDBClient({}));
@@ -65,6 +60,7 @@ async function getContactById(id) {
 }
 
 async function getContactByEmail(email) {
+	if (!email) return null;
 	const res = await ddb.send(
 		new QueryCommand({
 			TableName: CONTACTS_TABLE_NAME,
@@ -81,55 +77,44 @@ async function getContactByEmail(email) {
 	return null;
 }
 
-async function getContactByPhone(phone) {
-	if (!phone) return null;
-	const res = await ddb.send(
-		new QueryCommand({
-			TableName: CONTACTS_TABLE_NAME,
-			IndexName: 'PhoneIndex',
-			KeyConditionExpression: '#p = :p',
-			ExpressionAttributeNames: { '#p': 'phone' },
-			ExpressionAttributeValues: { ':p': phone },
-			Limit: 1
-		})
-	);
-	if (Array.isArray(res.Items) && res.Items.length > 0) {
-		return res.Items[0];
+async function addContact(email, name) {
+	if (!email) {
+		const err = new Error('Email is required');
+		err.code = 'BadRequest';
+		throw err;
 	}
-	return null;
-}
-
-async function addContact(email, name, phone, sendEmail = true, sendWhatsApp = false) {
-	// enforce unique email using GSI (only if provided)
-	if (email) {
-		const existing = await getContactByEmail(email);
-		if (existing) {
-			const err = new Error('Contact already exists');
-			err.code = 'ContactExists';
-			throw err;
-		}
-	}
-	// enforce unique phone if provided
-	if (phone) {
-		const existingPhone = await getContactByPhone(phone);
-		if (existingPhone) {
-			const err = new Error('Contact already exists');
-			err.code = 'ContactExists';
-			throw err;
-		}
+	const existing = await getContactByEmail(email);
+	if (existing) {
+		await ddb.send(
+			new UpdateCommand({
+				TableName: CONTACTS_TABLE_NAME,
+				Key: { id: existing.id },
+				UpdateExpression: 'SET #name = :name, #subscribed = :subscribed, #updatedAt = :updatedAt',
+				ExpressionAttributeNames: {
+					'#name': 'name',
+					'#subscribed': 'subscribed',
+					'#updatedAt': 'updatedAt'
+				},
+				ExpressionAttributeValues: {
+					':name': name,
+					':subscribed': true,
+					':updatedAt': new Date().toISOString()
+				}
+			})
+		);
+		return { ...existing, name, subscribed: true };
 	}
 	const id = randomUUID();
+	const now = new Date().toISOString();
 	await ddb.send(
 		new PutCommand({
 			TableName: CONTACTS_TABLE_NAME,
 			Item: {
 				id,
-				email: email || undefined,
+				email,
 				name,
-				createdAt: new Date().toISOString(),
-				phone: phone || undefined,
-				send_email: !!sendEmail,
-				send_whatsapp: !!sendWhatsApp
+				createdAt: now,
+				subscribed: true
 			},
 			ConditionExpression: 'attribute_not_exists(#id)',
 			ExpressionAttributeNames: {
@@ -137,7 +122,7 @@ async function addContact(email, name, phone, sendEmail = true, sendWhatsApp = f
 			}
 		})
 	);
-	return { id, email, name, phone, send_email: !!sendEmail, send_whatsapp: !!sendWhatsApp };
+	return { id, email, name, subscribed: true };
 }
 
 async function deleteContact(id) {
@@ -150,61 +135,31 @@ async function deleteContact(id) {
 	return { id };
 }
 
+async function updateContactSubscription(id, subscribed) {
+	await ddb.send(
+		new UpdateCommand({
+			TableName: CONTACTS_TABLE_NAME,
+			Key: { id },
+			UpdateExpression: 'SET #sub = :sub, #updatedAt = :updatedAt',
+			ExpressionAttributeNames: {
+				'#sub': 'subscribed',
+				'#updatedAt': 'updatedAt'
+			},
+			ExpressionAttributeValues: {
+				':sub': !!subscribed,
+				':updatedAt': new Date().toISOString()
+			}
+		})
+	);
+	return { id, subscribed: !!subscribed };
+}
+
 module.exports = {
 	putAyah,
 	listContacts,
 	getContactById,
 	getContactByEmail,
-	getContactByPhone,
 	addContact,
 	deleteContact,
-	getWhatsAppSession,
-	putWhatsAppSession,
-	getLatestQr,
-	putLatestQr
+	updateContactSubscription
 };
-
-// WhatsApp session helpers
-async function getWhatsAppSession() {
-	if (!WHATSAPP_SESSION_TABLE_NAME) return null;
-	const res = await ddb.send(
-		new GetCommand({
-			TableName: WHATSAPP_SESSION_TABLE_NAME,
-			Key: { id: 'session' }
-		})
-	);
-	return (res.Item && res.Item.session) || null;
-}
-
-async function putWhatsAppSession(session) {
-	if (!WHATSAPP_SESSION_TABLE_NAME) return;
-	await ddb.send(
-		new PutCommand({
-			TableName: WHATSAPP_SESSION_TABLE_NAME,
-			Item: { id: 'session', session, updatedAt: new Date().toISOString() }
-		})
-	);
-}
-
-async function getLatestQr() {
-	if (!WHATSAPP_SESSION_TABLE_NAME) return null;
-	const res = await ddb.send(
-		new GetCommand({
-			TableName: WHATSAPP_SESSION_TABLE_NAME,
-			Key: { id: 'qr' }
-		})
-	);
-	return (res.Item && res.Item.qr) || null;
-}
-
-async function putLatestQr(qr) {
-	if (!WHATSAPP_SESSION_TABLE_NAME) return;
-	await ddb.send(
-		new PutCommand({
-			TableName: WHATSAPP_SESSION_TABLE_NAME,
-			Item: { id: 'qr', qr, updatedAt: new Date().toISOString() }
-		})
-	);
-}
-
-
