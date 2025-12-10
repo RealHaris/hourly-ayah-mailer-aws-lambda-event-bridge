@@ -21,7 +21,24 @@ async function getAppSecrets() {
 
 	const secretId = process.env.APP_SECRETS_ID;
 	if (!secretId) {
-		throw new Error('APP_SECRETS_ID environment variable not set');
+		// Fall back to inline environment variables for local/offline usage
+		const fallback = {
+			QURAN_API_CLIENT_ID: process.env.QURAN_API_CLIENT_ID,
+			QURAN_API_CLIENT_SECRET: process.env.QURAN_API_CLIENT_SECRET,
+			JWT_ACCESS_SECRET: process.env.JWT_ACCESS_SECRET,
+			JWT_REFRESH_SECRET: process.env.JWT_REFRESH_SECRET
+		};
+		if (
+			fallback.QURAN_API_CLIENT_ID &&
+			fallback.QURAN_API_CLIENT_SECRET &&
+			fallback.JWT_ACCESS_SECRET &&
+			fallback.JWT_REFRESH_SECRET
+		) {
+			cachedAppSecrets = fallback;
+			cacheExpiry = now + CACHE_TTL_MS;
+			return cachedAppSecrets;
+		}
+		throw new Error('APP_SECRETS_ID environment variable not set and inline secrets are unavailable');
 	}
 
 	const command = new GetSecretValueCommand({ SecretId: secretId });

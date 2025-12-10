@@ -20,11 +20,9 @@
     "@aws-sdk/client-dynamodb": "^3.632.0",
     "@aws-sdk/client-secrets-manager": "^3.632.0",
     "@aws-sdk/lib-dynamodb": "^3.632.0",
+    "@quranjs/api": "^2.0.0",
     "joi": "^17.12.3",
     "jsonwebtoken": "^9.0.2",
     "nodemailer": "^6.9.13"
-  },
-  "optionalDependencies": {
-    "@quranjs/api": "^0.1.0"
   }
 }

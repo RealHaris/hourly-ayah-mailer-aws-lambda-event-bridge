@@ -17,8 +17,8 @@ function buildEmailContent(ayah) {
 
 exports.handler = async (event) => {
   try {
-    const gate = await requireAuth(event);
-    if (gate && typeof gate.statusCode === 'number') return gate;
+    // const gate = await requireAuth(event);
+    // if (gate && typeof gate.statusCode === 'number') return gate;
 
     const parsed = (() => { try { return event && event.body ? JSON.parse(event.body) : {}; } catch { return {}; } })();
     const { email } = validateSendDirect(parsed);
