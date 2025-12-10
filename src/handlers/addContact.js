@@ -2,14 +2,10 @@
 
 const { addContact } = require('../lib/dynamo');
 const { validateAddContact } = require('../lib/validation');
-const { requireAuth } = require('../lib/auth');
 const http = require('../lib/http');
 
 exports.handler = async (event) => {
 	try {
-		const gate = await requireAuth(event);
-		if (gate && typeof gate.statusCode === 'number') return gate;
-
 		const parsed = (() => {
 			try {
 				return event && event.body ? JSON.parse(event.body) : {};
@@ -18,10 +14,7 @@ exports.handler = async (event) => {
 			}
 		})();
 		const { email, name } = validateAddContact(parsed);
-		const created = await addContact(
-			email,
-			name
-		);
+		const created = await addContact(email, name);
 		return http.created('Contact created', created);
 	} catch (err) {
 		const msg = String(err);

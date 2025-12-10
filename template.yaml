@@ -72,6 +72,13 @@ Resources:
       KeySchema:
         - AttributeName: id
           KeyType: HASH
+      GlobalSecondaryIndexes:
+        - IndexName: EmailIndex
+          KeySchema:
+            - AttributeName: email
+              KeyType: HASH
+          Projection:
+            ProjectionType: ALL
   ContactsTable:
     Type: AWS::DynamoDB::Table
     DeletionPolicy: Retain
@@ -216,6 +223,12 @@ Resources:
       Policies:
         - DynamoDBCrudPolicy:
             TableName: !Ref ContactsTable
+        - Statement:
+            - Effect: Allow
+              Action:
+                - secretsmanager:GetSecretValue
+              Resource:
+                - !Sub arn:${AWS::Partition}:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:${AppSecretsId}*
 
   UpdateContactFunction:
     Type: AWS::Serverless::Function
@@ -232,6 +245,12 @@ Resources:
       Policies:
         - DynamoDBCrudPolicy:
             TableName: !Ref ContactsTable
+        - Statement:
+            - Effect: Allow
+              Action:
+                - secretsmanager:GetSecretValue
+              Resource:
+                - !Sub arn:${AWS::Partition}:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:${AppSecretsId}*
   ListContactsFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -247,6 +266,12 @@ Resources:
       Policies:
         - DynamoDBReadPolicy:
             TableName: !Ref ContactsTable
+        - Statement:
+            - Effect: Allow
+              Action:
+                - secretsmanager:GetSecretValue
+              Resource:
+                - !Sub arn:${AWS::Partition}:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:${AppSecretsId}*
 
   SendDirectFunction:
     Type: AWS::Serverless::Function
