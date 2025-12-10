@@ -428,15 +428,6 @@ function buildReflectionEmailContent(ayah, unsubscribeUrl, recipientName, showUn
 
             </div>
 
-            ${ayah.textUrdu ? `
-            <!-- Urdu Translation -->
-            <div class="translation-box">
-                <span class="label">Urdu Translation:</span>
-                <p class="verse-text">
-                    ${ayah.textUrdu}
-                </p>
-            </div>` : ``}
-
             ${ayah.tafseerText ? `
             <!-- Tafsir -->
             <div class="translation-box">
@@ -450,10 +441,11 @@ function buildReflectionEmailContent(ayah, unsubscribeUrl, recipientName, showUn
             <!-- Audio Link -->
             <div class="translation-box">
                 <span class="label">Audio Recitation:</span>
-                <p class="verse-text">
-                    <a href="${ayah.audioUrl}" target="_blank" rel="noopener noreferrer">${ayah.audioUrl}</a>
-                </p>
-                <p class="source">An audio file is attached as well, if supported by your email client.</p>
+                <audio controls preload="none" style="width:100%;margin-top:0.5rem;">
+                    <source src="${ayah.audioUrl}" type="audio/mpeg">
+                    Your browser does not support the audio element.
+                </audio>
+                <p class="source">The full recitation is attached to this email.</p>
             </div>` : ``}
 
             <div class="separator-text">
@@ -499,7 +491,7 @@ function buildReflectionEmailContent(ayah, unsubscribeUrl, recipientName, showUn
 
 </html>
 `;
-    const text = [
+    const textParts = [
         `A Moment of Reflection - Surah ${ayah.surahNameEnglish} ${ayah.surahNumber}:${ayah.ayahNumber}`,
         '',
         ayah.textArabic,
@@ -507,7 +499,14 @@ function buildReflectionEmailContent(ayah, unsubscribeUrl, recipientName, showUn
         ayah.textEnglish,
         '',
         `Surah ${ayah.surahNameEnglish} (${ayah.surahNumber}:${ayah.ayahNumber})`
-    ].join('\n');
+    ];
+    if (ayah.tafseerText) {
+        textParts.push('', 'Tafsir:', ayah.tafseerText);
+    }
+    if (ayah.audioUrl) {
+        textParts.push('', 'Audio recitation attached.');
+    }
+    const text = textParts.join('\n');
     return { subject, html, text };
 }
 

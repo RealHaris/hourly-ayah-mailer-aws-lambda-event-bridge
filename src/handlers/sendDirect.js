@@ -24,6 +24,11 @@ exports.handler = async (event) => {
     const { email } = validateSendDirect(parsed);
 
     const ayah = await getRandomAyah();
+    try {
+      console.log('[sendDirect] ayah payload:', JSON.stringify(ayah));
+    } catch {
+      // ignore
+    }
     const record = {
       id: randomUUID(),
       createdAt: new Date().toISOString(),
@@ -36,7 +41,13 @@ exports.handler = async (event) => {
     const attachments = ayah.audioUrl
       ? [{ filename: `surah-${ayah.surahNumber}-ayah-${ayah.ayahNumber}.mp3`, path: ayah.audioUrl }]
       : undefined;
-    await sendEmail({ to: email, subject, html, text, attachments });
+    console.log('[sendDirect] attachments:', attachments);
+    const emailResponse = await sendEmail({ to: email, subject, html, text, attachments });
+    try {
+      console.log('[sendDirect] sendEmail response:', JSON.stringify(emailResponse));
+    } catch {
+      console.log('[sendDirect] sendEmail response (non-serializable)', emailResponse);
+    }
     return http.ok('Send completed', { sent: 1 });
   } catch (err) {
     if (err && err.code === 'BadRequest') {

@@ -23,11 +23,11 @@ let cachedClient;
 async function getClient() {
 	if (cachedClient) return cachedClient;
 	const { QuranClient: QC, Language: Lang } = await getSdk();
-	
+
 	// Fetch credentials from Secrets Manager
 	const { clientId, clientSecret } = await getQuranApiCredentials();
 	const oauthUrl = process.env.QURAN_API_OAUTH_URL || 'https://prelive-oauth2.quran.foundation';
-	
+
 	// The SDK is expected to handle OAuth internally using provided creds
 	cachedClient = new QC({
 		clientId,
@@ -46,6 +46,14 @@ function randomInt(min, max) {
 
 async function getRandomAyahRich() {
 	const client = await getClient();
+	try {
+		console.log('[getRandomAyahRich] client keys:', Object.keys(client || {}));
+		if (client?.audio) {
+			console.log('[getRandomAyahRich] audio keys:', Object.keys(client.audio));
+		}
+	} catch {
+		// ignore
+	}
 
 	// Get chapters (surahs) to pick a random verse location
 	const chapters = await client.chapters.findAll();
@@ -62,42 +70,76 @@ async function getRandomAyahRich() {
 	// Note: translation/tafsir/audio selector interfaces may vary by SDK version.
 	// We attempt common fields and fall back gracefully.
 	const verse = await client.verses.findByKey(verseKey, {
-		translations: ['en_khattab', 'ur_maududi'],
-		tafsirs: ['ur_ibn_kathir', 'en_ibn_kathir'],
-		recitation: 'mishary_alafasy',
-		words: false
+		translations: [20, 131], // English + Urdu
+		tafsirs: [171], // Ibn Kathir (en)
+		reciter: 2, // Mishary Alafasy
+		fields: {
+			textUthmani: true,
+			textIndopak: true,
+			textImlaei: true,
+			chapterId: true
+		},
+		translationFields: { languageName: true, resourceName: true },
+		tafsirFields: { languageName: true, resourceName: true }
 	});
+	try {
+		console.log('[getRandomAyahRich] verseKey', verseKey, 'raw response:', JSON.stringify(verse));
+	} catch {
+		// ignore serialization errors
+	}
 
-	const textArabic =
-		verse?.text_uthmani || verse?.text_arabic || verse?.text || verse?.verse?.text || '';
-	const surahNameEnglish =
-		verse?.chapter?.name_simple || verse?.chapter?.name_en || verse?.surah?.englishName || '';
-	const surahNameArabic =
-		verse?.chapter?.name_arabic || verse?.surah?.name || verse?.chapter?.name_ar || '';
+	let textArabic =
+		verse?.textUthmani ||
+		verse?.textUthmaniSimple ||
+		verse?.textIndopak ||
+		verse?.textImlaei ||
+		verse?.text ||
+		verse?.verse?.text ||
+		'';
+	let surahNameEnglish =
+		verse?.chapter?.nameSimple ||
+		verse?.chapter?.nameEn ||
+		verse?.chapter?.nameEnglish ||
+		pick?.name_simple ||
+		pick?.name_en ||
+		pick?.nameSimple ||
+		pick?.translatedName?.name ||
+		'';
+	let surahNameArabic =
+		verse?.chapter?.nameArabic ||
+		verse?.surah?.name ||
+		verse?.chapter?.nameAr ||
+		pick?.name_arabic ||
+		pick?.name_ar ||
+		pick?.nameArabic ||
+		'';
 
 	let textEnglish = '';
 	let textUrdu = '';
 	if (Array.isArray(verse?.translations)) {
 		for (const t of verse.translations) {
-			const lang = (t.language_name || t.language || '').toLowerCase();
-			if (!textEnglish && (lang === 'english' || lang === 'en')) textEnglish = t.text || t.body || '';
-			if (!textUrdu && (lang === 'urdu' || lang === 'ur')) textUrdu = t.text || t.body || '';
+			const lang = (t.languageName || t.language || '').toLowerCase();
+			const id = t.resourceId || t.id;
+			if (!textEnglish && (lang.startsWith('en') || id === 20)) textEnglish = t.text || t.body || '';
+			if (!textUrdu && (lang.startsWith('ur') || id === 131)) textUrdu = t.text || t.body || '';
 		}
 	}
 
 	let tafseerText = '';
 	if (Array.isArray(verse?.tafsirs)) {
 		// prefer Urdu
-		let ur = verse.tafsirs.find((t) => (t.language || '').toLowerCase().startsWith('ur'));
-		let en = verse.tafsirs.find((t) => (t.language || '').toLowerCase().startsWith('en'));
+		let ur = verse.tafsirs.find((t) => (t.languageName || t.language || '').toLowerCase().startsWith('ur'));
+		let en = verse.tafsirs.find((t) => (t.languageName || t.language || '').toLowerCase().startsWith('en'));
 		tafseerText = (ur && (ur.text || ur.body)) || (en && (en.text || en.body)) || '';
 	}
 
 	let audioUrl = '';
-	if (verse?.audio && (verse.audio.url || verse.audio.audio_url)) {
-		audioUrl = verse.audio.url || verse.audio.audio_url;
-	} else if (Array.isArray(verse?.audio_files) && verse.audio_files.length > 0) {
-		audioUrl = verse.audio_files[0].url || verse.audio_files[0].audio_url || '';
+	if (verse?.audio && (verse.audio.url || verse.audio.audioUrl)) {
+		audioUrl = verse.audio.url || verse.audio.audioUrl;
+	} else if (Array.isArray(verse?.audioFiles) && verse.audioFiles.length > 0) {
+		audioUrl = verse.audioFiles[0].url || verse.audioFiles[0].audioUrl || '';
+	} else {
+		audioUrl = await fetchAudioUrl(client, verseKey);
 	}
 
 	return {
@@ -116,7 +158,7 @@ async function getRandomAyahRich() {
 async function getRandomAyah() {
 	// Backward compatible shape used by existing handlers; now enriched
 	const rich = await getRandomAyahRich();
-	return {
+	const formatted = {
 		surahNumber: rich.surahNumber,
 		ayahNumber: rich.ayahNumber,
 		textArabic: rich.textArabic,
@@ -127,9 +169,50 @@ async function getRandomAyah() {
 		tafseerText: rich.tafseerText,
 		audioUrl: rich.audioUrl
 	};
+	try {
+		console.log('[getRandomAyah] formatted payload:', JSON.stringify(formatted));
+	} catch {
+		// ignore serialization errors
+	}
+	return formatted;
 }
 
 module.exports = {
 	getRandomAyah,
 	getRandomAyahRich
 };
+
+async function fetchAudioUrl(client, verseKey) {
+	const recitationId = Number(process.env.QURAN_AUDIO_RECITER_ID || 2);
+	if (!client?.audio?.findVerseRecitationsByKey) return '';
+	try {
+		const response = await client.audio.findVerseRecitationsByKey(verseKey, recitationId, { format: 'mp3' });
+		try {
+			console.log('[fetchAudioUrl] response', JSON.stringify(response));
+		} catch {
+			// ignore
+		}
+		const files =
+			(Array.isArray(response?.audio_files) && response.audio_files.length > 0 && response.audio_files) ||
+			(Array.isArray(response?.audioFiles) && response.audioFiles.length > 0 && response.audioFiles) ||
+			null;
+		if (files && files.length > 0) {
+			return normalizeAudioUrl(files[0].audio_url || files[0].audioUrl || files[0].url);
+		}
+		const file = response?.audio_file || response?.audioFile || response?.audio || null;
+		if (file) {
+			return normalizeAudioUrl(file.audio_url || file.audioUrl || file.url);
+		}
+		console.warn('[fetchAudioUrl] Unexpected audio API response shape', response);
+		return '';
+	} catch (err) {
+		console.warn('[fetchAudioUrl] failed to fetch audio for', verseKey, err);
+		return '';
+	}
+}
+
+function normalizeAudioUrl(path) {
+	if (!path) return '';
+	if (/^https?:\/\//i.test(path)) return path;
+	return `https://audio.qurancdn.com/${path.replace(/^\/+/, '')}`;
+}
