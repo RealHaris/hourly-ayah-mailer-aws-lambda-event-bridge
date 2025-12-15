@@ -2,6 +2,11 @@
 
 const { getQuranApiCredentials } = require('./secrets');
 
+const fetch =
+	typeof globalThis.fetch === 'function'
+		? (...args) => globalThis.fetch(...args)
+		: (...args) => import('node-fetch').then(({ default: nodeFetch }) => nodeFetch(...args));
+
 let QuranClient;
 let Language;
 
@@ -114,9 +119,9 @@ async function getRandomAyahRich() {
 		pick?.nameArabic ||
 		'';
 
-	let textEnglish = '';
-	let textUrdu = '';
-	if (Array.isArray(verse?.translations)) {
+let textEnglish = '';
+let textUrdu = '';
+if (Array.isArray(verse?.translations)) {
 		for (const t of verse.translations) {
 			const lang = (t.languageName || t.language || '').toLowerCase();
 			const id = t.resourceId || t.id;
@@ -125,13 +130,16 @@ async function getRandomAyahRich() {
 		}
 	}
 
-	let tafseerText = '';
-	if (Array.isArray(verse?.tafsirs)) {
-		// prefer Urdu
-		let ur = verse.tafsirs.find((t) => (t.languageName || t.language || '').toLowerCase().startsWith('ur'));
-		let en = verse.tafsirs.find((t) => (t.languageName || t.language || '').toLowerCase().startsWith('en'));
-		tafseerText = (ur && (ur.text || ur.body)) || (en && (en.text || en.body)) || '';
-	}
+let tafseerText = '';
+if (Array.isArray(verse?.tafsirs)) {
+	// prefer Urdu
+	let ur = verse.tafsirs.find((t) => (t.languageName || t.language || '').toLowerCase().startsWith('ur'));
+	let en = verse.tafsirs.find((t) => (t.languageName || t.language || '').toLowerCase().startsWith('en'));
+	tafseerText = (ur && (ur.text || ur.body)) || (en && (en.text || en.body)) || '';
+}
+if (!tafseerText) {
+	tafseerText = await fetchTafsirText(client, verseKey);
+}
 
 	let audioUrl = '';
 	if (verse?.audio && (verse.audio.url || verse.audio.audioUrl)) {
@@ -215,4 +223,62 @@ function normalizeAudioUrl(path) {
 	if (!path) return '';
 	if (/^https?:\/\//i.test(path)) return path;
 	return `https://audio.qurancdn.com/${path.replace(/^\/+/, '')}`;
+}
+
+async function fetchTafsirText(client, verseKey) {
+	const tafsirId = Number(process.env.QURAN_TAFSIR_ID || 171);
+	if (tafsirId && client?.fetcher) {
+		try {
+			const response = await client.fetcher.fetch(
+				`/content/api/v4/tafsirs/${tafsirId}/by_ayah/${verseKey}`,
+				{}
+			);
+			try {
+				console.log('[fetchTafsirText] response', JSON.stringify(response));
+			} catch {
+				// ignore
+			}
+			const entry =
+				(response?.tafsir && response.tafsir) ||
+				(Array.isArray(response?.tafsirs) && response.tafsirs.length > 0 && response.tafsirs[0]) ||
+				null;
+			if (entry) {
+				return entry.text || entry.body || '';
+			}
+			console.warn('[fetchTafsirText] unexpected response shape', response);
+		} catch (err) {
+			console.warn('[fetchTafsirText] failed for', verseKey, err);
+		}
+	}
+	return fetchPublicTafsir(verseKey);
+}
+
+async function fetchPublicTafsir(verseKey) {
+	if (typeof fetch !== 'function') return '';
+	const tafsirId = Number(process.env.QURAN_TAFSIR_FALLBACK_ID || 169);
+	const url = `https://api.quran.com/api/v4/tafsirs/${tafsirId}/by_ayah/${verseKey}?language=en`;
+	try {
+		const res = await fetch(url);
+		if (!res.ok) {
+			console.warn('[fetchPublicTafsir] non-OK response', res.status);
+			return '';
+		}
+		const payload = await res.json();
+		try {
+			console.log('[fetchPublicTafsir] response', JSON.stringify(payload));
+		} catch {
+			// ignore
+		}
+		const entry =
+			payload?.tafsir ||
+			(Array.isArray(payload?.tafsirs) && payload.tafsirs.length > 0 && payload.tafsirs[0]) ||
+			null;
+		if (entry) {
+			return entry.text || entry.body || '';
+		}
+		return '';
+	} catch (err) {
+		console.warn('[fetchPublicTafsir] failed', err);
+		return '';
+	}
 }
