@@ -19,7 +19,7 @@ async function getAppSecrets() {
 		return cachedAppSecrets;
 	}
 
-	const secretId = process.env.APP_SECRETS_ID;
+	const secretId = process.env.APP_SECRETS_ID || 'ayah-mailer/config';
 	if (!secretId) {
 		// Fall back to inline environment variables for local/offline usage
 		const fallback = {
@@ -48,7 +48,17 @@ async function getAppSecrets() {
 		throw new Error('App secrets not found or empty');
 	}
 
-	cachedAppSecrets = JSON.parse(response.SecretString);
+	const parsedResponse = JSON.parse(response.SecretString);
+
+	// Extract secrets from the new structure
+	cachedAppSecrets = {
+		QURAN_API_CLIENT_ID: parsedResponse.quran_api?.client_id,
+		QURAN_API_CLIENT_SECRET: parsedResponse.quran_api?.client_secret,
+		JWT_ACCESS_SECRET: parsedResponse.jwt?.access_secret,
+		JWT_REFRESH_SECRET: parsedResponse.jwt?.refresh_secret,
+		RESEND_API_KEY: parsedResponse.resend?.api_key
+	};
+
 	cacheExpiry = now + CACHE_TTL_MS;
 
 	return cachedAppSecrets;
@@ -99,10 +109,24 @@ function clearSecretsCache() {
 	cacheExpiry = 0;
 }
 
+/**
+ * Get Resend API Key from Secrets Manager
+ */
+async function getResendApiKey() {
+	const secrets = await getAppSecrets();
+	console.log(secrets);
+	const apiKey = secrets.RESEND_API_KEY;
+	if (!apiKey) {
+		throw new Error('RESEND_API_KEY not found in app secrets');
+	}
+	return apiKey;
+}
+
 module.exports = {
 	getAppSecrets,
 	getJwtAccessSecret,
 	getJwtRefreshSecret,
 	getQuranApiCredentials,
+	getResendApiKey,
 	clearSecretsCache
 };

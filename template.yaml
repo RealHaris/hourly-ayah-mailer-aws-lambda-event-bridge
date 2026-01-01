@@ -12,7 +12,6 @@ Globals:
         CONTACTS_TABLE_NAME: !Ref ContactsTable
         AYAHS_TABLE_NAME: !Ref AyahsTable
         USERS_TABLE_NAME: !Ref UsersTable
-        GMAIL_SECRET_ID: !Ref GmailSecretId
         APP_SECRETS_ID: !Ref AppSecretsId
         MAIL_FROM: !Ref MailFrom
         HTTP_API_URL: !Ref HttpApiUrl
@@ -32,18 +31,14 @@ Globals:
         - "*"
 
 Parameters:
-  GmailSecretId:
-    Type: String
-    Default: gmail/ayah-mailer
-    Description: Secrets Manager secret name or ARN containing Gmail username and app_password fields.
   AppSecretsId:
     Type: String
-    Default: ayah-mailer/app-secrets
-    Description: Secrets Manager secret name containing QURAN_API_CLIENT_ID, QURAN_API_CLIENT_SECRET, JWT_ACCESS_SECRET, JWT_REFRESH_SECRET.
+    Default: ayah-mailer/config
+    Description: Secrets Manager secret name containing all application secrets including QURAN_API_CLIENT_ID, QURAN_API_CLIENT_SECRET, JWT_ACCESS_SECRET, JWT_REFRESH_SECRET, and RESEND_API_KEY.
   MailFrom:
     Type: String
-    Default: your@gmail.com
-    Description: From address to use for sending emails (Gmail address).
+    Default: hello@realharis.works
+    Description: From address to use for sending emails (Resend verified domain).
   HttpApiUrl:
     Type: String
     Default: ""
@@ -139,7 +134,6 @@ Resources:
               Action:
                 - secretsmanager:GetSecretValue
               Resource:
-                - !Sub arn:${AWS::Partition}:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:${GmailSecretId}*
                 - !Sub arn:${AWS::Partition}:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:${AppSecretsId}*
 
   SendAllFunction:
@@ -164,7 +158,6 @@ Resources:
               Action:
                 - secretsmanager:GetSecretValue
               Resource:
-                - !Sub arn:${AWS::Partition}:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:${GmailSecretId}*
                 - !Sub arn:${AWS::Partition}:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:${AppSecretsId}*
 
   SendContactFunction:
@@ -189,7 +182,6 @@ Resources:
               Action:
                 - secretsmanager:GetSecretValue
               Resource:
-                - !Sub arn:${AWS::Partition}:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:${GmailSecretId}*
                 - !Sub arn:${AWS::Partition}:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:${AppSecretsId}*
 
   AddContactFunction:
@@ -293,7 +285,6 @@ Resources:
               Action:
                 - secretsmanager:GetSecretValue
               Resource:
-                - !Sub arn:${AWS::Partition}:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:${GmailSecretId}*
                 - !Sub arn:${AWS::Partition}:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:${AppSecretsId}*
 
   AddContactWithSendFunction:
@@ -318,7 +309,6 @@ Resources:
               Action:
                 - secretsmanager:GetSecretValue
               Resource:
-                - !Sub arn:${AWS::Partition}:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:${GmailSecretId}*
                 - !Sub arn:${AWS::Partition}:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:${AppSecretsId}*
 
   UnsubscribeFunction:
@@ -423,7 +413,6 @@ Resources:
               Action:
                 - secretsmanager:GetSecretValue
               Resource:
-                - !Sub arn:${AWS::Partition}:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:${GmailSecretId}*
                 - !Sub arn:${AWS::Partition}:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:${AppSecretsId}*
 
   VerifyOtpResetPasswordFunction:

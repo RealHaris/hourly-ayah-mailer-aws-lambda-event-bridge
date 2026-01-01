@@ -1,11 +1,6 @@
 'use strict';
 
-const nodemailer = require('nodemailer');
-const { SecretsManagerClient, GetSecretValueCommand } = require('@aws-sdk/client-secrets-manager');
-
-const secretsClient = new SecretsManagerClient({});
-let cachedSecret;
-let cachedTransporter;
+const { getResendApiKey } = require('./secrets');
 
 function escapeHtml(value) {
     return String(value || '').replace(/[<>&"]/g, (c) => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;' }[c]));
@@ -28,7 +23,7 @@ function buildReflectionEmailContent(ayah, unsubscribeUrl, recipientName, showUn
 
     <title>${subject}</title>
 
-    
+
 
     <!-- Fonts -->
 
@@ -36,7 +31,7 @@ function buildReflectionEmailContent(ayah, unsubscribeUrl, recipientName, showUn
 
     <link href="https://fonts.googleapis.com/css2?family=Amiri+Quran&display=swap" rel="stylesheet">
 
-    
+
 
     <style>
 
@@ -50,7 +45,7 @@ function buildReflectionEmailContent(ayah, unsubscribeUrl, recipientName, showUn
 
             --color-green-800: #166534; /* Darker Green for Header */
 
-            --color-green-700: #15803d; 
+            --color-green-700: #15803d;
 
             --color-green-50: #f0fdf4;  /* Lightest Green for Translation Box */
 
@@ -172,11 +167,11 @@ function buildReflectionEmailContent(ayah, unsubscribeUrl, recipientName, showUn
 
             font-family: 'Amiri Quran', serif;
 
-            font-size: 2rem; 
+            font-size: 2rem;
 
             line-height: 2.5;
 
-            direction: rtl; 
+            direction: rtl;
 
             text-align: right;
 
@@ -302,7 +297,7 @@ function buildReflectionEmailContent(ayah, unsubscribeUrl, recipientName, showUn
 
         }
 
-        
+
 
         .unsubscribe-link a {
 
@@ -374,7 +369,7 @@ function buildReflectionEmailContent(ayah, unsubscribeUrl, recipientName, showUn
 
     <div class="container">
 
-        
+
 
         <!-- Header / Banner Area -->
 
@@ -510,128 +505,58 @@ function buildReflectionEmailContent(ayah, unsubscribeUrl, recipientName, showUn
     return { subject, html, text };
 }
 
-function tryParseJsonSafely(text) {
-    if (typeof text !== 'string') return null;
-    const trimmed = text.trim();
-    if (!trimmed.startsWith('{') || !trimmed.endsWith('}')) {
-        return null;
-    }
-    try {
-        return JSON.parse(trimmed);
-    } catch {
-        return null;
-    }
-}
-
-function parseSecretPayloadToCreds(raw) {
-    // Prefer strict JSON
-    const asJson = tryParseJsonSafely(raw);
-    if (asJson && typeof asJson === 'object') {
-        const username = asJson.username;
-        const appPassword = asJson.app_password;
-        if (username && appPassword) {
-            return { username, app_password: appPassword };
-        }
-    }
-
-    // Single-line object-ish string: {key:value,key2:value2}
-    if (typeof raw === 'string') {
-        let s = raw.trim();
-        if (s.startsWith('{') && s.endsWith('}')) {
-            s = s.slice(1, -1);
-            const kv = {};
-            for (const part of s.split(',')) {
-                const idx = part.indexOf(':');
-                if (idx > -1) {
-                    const key = part.slice(0, idx).trim();
-                    const value = part.slice(idx + 1).trim();
-                    if (key) kv[key] = value;
-                }
-            }
-            const username = kv.username;
-            const appPassword = kv.app_password;
-            if (username && appPassword) {
-                return { username, app_password: appPassword };
-            }
-        }
-    }
-
-    // key=value or key: value format
-    const lines = String(raw).split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
-    if (lines.length >= 1) {
-        const kv = {};
-        for (const line of lines) {
-            const m = line.match(/^([^:=\s]+)\s*[:=]\s*(.+)$/);
-            if (m) kv[m[1]] = m[2];
-        }
-        const username = kv.username;
-        const appPassword = kv.app_password;
-        if (username && appPassword) {
-            return { username, app_password: appPassword };
-        }
-    }
-
-    // single line user:pass
-    if (typeof raw === 'string' && raw.includes(':')) {
-        const idx = raw.indexOf(':');
-        const u = raw.slice(0, idx).trim();
-        const p = raw.slice(idx + 1).trim();
-        if (u && p) return { username: u, app_password: p };
-    }
-
-    return null;
-}
-
-async function getGmailCredentials() {
-    if (cachedSecret) return cachedSecret;
-    const secretId = process.env.GMAIL_SECRET_ID;
-    if (!secretId) {
-        throw new Error('GMAIL_SECRET_ID env var not set');
-    }
-    const cmd = new GetSecretValueCommand({ SecretId: secretId });
-    const res = await secretsClient.send(cmd);
-    if (!res || (!res.SecretString && !res.SecretBinary)) {
-        throw new Error('Empty secret from Secrets Manager');
-    }
-    const payload = res.SecretString
-        ? res.SecretString
-        : Buffer.from(res.SecretBinary, 'base64').toString('utf-8');
-    const creds = parseSecretPayloadToCreds(payload);
-    if (!creds || !creds.username || !creds.app_password) {
-        throw new Error(
-            'Secret must contain username and app_password fields (JSON preferred: { "username": "...", "app_password": "..." })'
-        );
-    }
-    cachedSecret = creds;
-    return creds;
-}
-
-async function getTransporter() {
-    if (cachedTransporter) return cachedTransporter;
-    const creds = await getGmailCredentials();
-    cachedTransporter = nodemailer.createTransport({
-        host: 'smtp.gmail.com',
-        port: 465,
-        secure: true,
-        auth: {
-            user: creds.username,
-            pass: creds.app_password
-        }
-    });
-    return cachedTransporter;
-}
 
 async function sendEmail({ to, subject, html, text, attachments }) {
-    const transporter = await getTransporter();
-    const from = process.env.MAIL_FROM || (await getGmailCredentials()).username;
-	return transporter.sendMail({
+    const apiKey = await getResendApiKey();
+    const from = process.env.MAIL_FROM || 'hello@realharis.works';
+
+    // Prepare email data
+    const emailData = {
         from,
         to,
         subject,
-        text,
-		html,
-		attachments: Array.isArray(attachments) ? attachments : undefined
-    });
+        html,
+        text
+    };
+
+    // Add attachments if provided
+    if (attachments && Array.isArray(attachments) && attachments.length > 0) {
+        // Resend expects attachments in a specific format
+        const formattedAttachments = attachments.map(attachment => {
+            if (attachment.path) {
+                // If it's a path, we need to fetch the content
+                return {
+                    filename: attachment.filename,
+                    path: attachment.path
+                };
+            } else {
+                return attachment;
+            }
+        });
+        emailData.attachments = formattedAttachments;
+    }
+
+    try {
+        const response = await fetch('https://api.resend.com/emails', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${apiKey}`,
+            },
+            body: JSON.stringify(emailData)
+        });
+
+        if (!response.ok) {
+            const error = await response.json().catch(() => ({}));
+            throw new Error(`Resend API error: ${response.status} - ${error.message || 'Unknown error'}`);
+        }
+
+        const result = await response.json();
+        return result;
+    } catch (error) {
+        console.error('Error sending email via Resend:', error);
+        throw error;
+    }
 }
 
 async function sendBulk(recipients, subject, html, text, batchSize = 5) {

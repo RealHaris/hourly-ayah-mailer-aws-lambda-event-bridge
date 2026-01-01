@@ -4,11 +4,10 @@ version = 0.1
 stack_name = "ayah-mailer"
 resolve_s3 = true
 s3_prefix = "ayah-mailer"
-region = "ap-south-1"
 confirm_changeset = true
 capabilities = "CAPABILITY_IAM"
-disable_rollback = false
-parameter_overrides = "GmailSecretId=\"gmail/ayah-mailer\" AppSecretsId=\"ayah-mailer/app-secrets\" MailFrom=\"harisxstudy@gmail.com\" QuranApiOauthUrl=\"https://oauth2.quran.foundation\" OtpTtlMinutes=\"10\""
+disable_rollback = true
+parameter_overrides = "AppSecretsId=\"ayah-mailer/config\" MailFrom=\"hello@realharis.works\" HttpApiUrl=\"\" QuranApiOauthUrl=\"https://oauth2.quran.foundation\" OtpTtlMinutes=\"10\""
 image_repositories = []
 
 [default.global.parameters]
